@@ -352,27 +352,9 @@
     }
     function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    /* Merge Agency Full Stack Developer candidates into Sr. Full Stack Engineer, then exclude it */
-    var agencyJob = null;
-    var fsEngineerJob = null;
-    for (var ri = 0; ri < RAW.jobs.length; ri++) {
-      if (RAW.jobs[ri].name === 'Agency Full Stack Developer') agencyJob = RAW.jobs[ri];
-      if (RAW.jobs[ri].name === 'Sr. Full Stack Engineer') fsEngineerJob = RAW.jobs[ri];
-    }
-    if (agencyJob && fsEngineerJob) {
-      fsEngineerJob.early += agencyJob.early;
-      fsEngineerJob.screened += agencyJob.screened;
-      fsEngineerJob.pre_gate += agencyJob.pre_gate;
-      fsEngineerJob.technical += agencyJob.technical;
-      fsEngineerJob.cultural += agencyJob.cultural;
-      fsEngineerJob.offer += agencyJob.offer;
-      fsEngineerJob.total += agencyJob.total;
-      fsEngineerJob.exp_hires = Math.round((fsEngineerJob.exp_hires + agencyJob.exp_hires) * 100) / 100;
-    }
-
-    /* Filter jobs */
+    /* Filter jobs (Agency Full Stack Developer merged into Sr. Full Stack Engineer at data level in build_and_deploy.py) */
     var jobs = RAW.jobs.filter(function(j){
-      return EXCLUDE.indexOf(j.name) === -1 && j.name.indexOf('Freelance') !== 0 && j.name !== 'Agency Full Stack Developer';
+      return EXCLUDE.indexOf(j.name) === -1 && j.name.indexOf('Freelance') !== 0;
     });
     var kpis = RAW.kpis;
 
