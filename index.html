@@ -815,15 +815,14 @@
       var monthlyScreensByTA = ANALYTICS.monthly_screens_by_ta || {};
       var allMonths = ANALYTICS.all_months || [];
 
-      if (allMonths.length > 0) {
-        var activeTAs = Object.keys(monthlyFillsByTA).filter(function(ta) {
-          return Object.values(monthlyFillsByTA[ta]).reduce(function(s,v){return s+v},0) > 0 ||
-                 (monthlyScreensByTA[ta] && Object.values(monthlyScreensByTA[ta]).reduce(function(s,v){return s+v},0) > 0);
-        }).sort();
+      var months2026 = allMonths.filter(function(m){return m.startsWith('2026')});
+      if (months2026.length > 0) {
+        var TA_WHITELIST = ['Valerie Rouan','Farshad Aslani','Laine Anderson','Kylie Hoffman'];
+        var activeTAs = TA_WHITELIST.filter(function(ta){ return monthlyFillsByTA[ta] || monthlyScreensByTA[ta]; });
 
         html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
           '<div class="section-bar" style="background:var(--accent)"></div>' +
-          '<span class="section-title">Monthly Hiring Tracker (2025-2026)</span>' +
+          '<span class="section-title">Monthly Hiring Tracker (2026)</span>' +
           '</div>' +
           '<table class="data-table"><thead><tr>' +
           '<th>Month</th><th class="num">Fills</th>';
@@ -834,12 +833,11 @@
         html += '</tr></thead><tbody>';
 
         var totalFillsAll = 0;
-        for (var mi = 0; mi < allMonths.length; mi++) {
-          var m = allMonths[mi];
+        for (var mi = 0; mi < months2026.length; mi++) {
+          var m = months2026[mi];
           var fills = monthlyFills[m] || 0;
           totalFillsAll += fills;
-          var isCurrentYear = m.startsWith('2026');
-          html += '<tr' + (isCurrentYear ? ' style="background:#f0fdf4"' : '') + '>' +
+          html += '<tr>' +
             '<td class="role-cell">' + m + '</td>' +
             '<td class="num" style="font-weight:700">' + fills + '</td>';
           for (var tbi = 0; tbi < activeTAs.length; tbi++) {
@@ -863,16 +861,33 @@
         }
         html += '</tr></tbody></table></div>';
 
-        /* Trend indicator */
-        var months2025 = allMonths.filter(function(m){return m.startsWith('2025')});
-        var months2026 = allMonths.filter(function(m){return m.startsWith('2026')});
-        var avg2025 = months2025.length > 0 ? Math.round(months2025.reduce(function(s,m){return s+(monthlyFills[m]||0)},0)/months2025.length * 10)/10 : 0;
-        var avg2026 = months2026.length > 0 ? Math.round(months2026.reduce(function(s,m){return s+(monthlyFills[m]||0)},0)/months2026.length * 10)/10 : 0;
-        var trend = avg2026 > avg2025 ? 'improving' : avg2026 < avg2025 ? 'declining' : 'stable';
-        var trendColor = trend === 'improving' ? 'var(--green)' : trend === 'declining' ? 'var(--red)' : 'var(--accent)';
-        html += '<div class="funnel-banner" style="margin-top:16px">' +
-          '<strong>Trend:</strong> Avg fills/month — 2025: <strong>' + avg2025 + '</strong>, 2026: <strong style="color:' + trendColor + '">' + avg2026 + '</strong> (' + trend + ')' +
-          '</div>';
+        /* Month-over-month trend comparison (2025 vs 2026) */
+        html += '<div class="section" style="margin-top:24px"><div class="section-header">' +
+          '<div class="section-bar" style="background:var(--green)"></div>' +
+          '<span class="section-title">Year-over-Year Monthly Comparison</span>' +
+          '</div>' +
+          '<table class="data-table"><thead><tr>' +
+          '<th>Month</th><th class="num">2025</th><th class="num">2026</th><th class="num">Change</th><th>Trend</th>' +
+          '</tr></thead><tbody>';
+        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        for (var mni = 0; mni < 12; mni++) {
+          var mm = String(mni+1).padStart(2,'0');
+          var fills25 = monthlyFills['2025-' + mm] || 0;
+          var fills26 = monthlyFills['2026-' + mm] || 0;
+          if (fills25 === 0 && fills26 === 0) continue;
+          var diff = fills26 - fills25;
+          var diffStr = diff > 0 ? '+' + diff : diff === 0 ? '—' : String(diff);
+          var diffColor = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--red)' : 'var(--text-dim)';
+          var arrow = diff > 0 ? '&#9650;' : diff < 0 ? '&#9660;' : '&#9644;';
+          html += '<tr>' +
+            '<td class="role-cell">' + monthNames[mni] + '</td>' +
+            numCell(fills25) +
+            '<td class="num" style="font-weight:700">' + fills26 + '</td>' +
+            '<td class="num" style="color:' + diffColor + ';font-weight:700">' + diffStr + '</td>' +
+            '<td style="color:' + diffColor + '">' + arrow + '</td>' +
+            '</tr>';
+        }
+        html += '</tbody></table></div>';
       }
 
       document.getElementById('tab-performance').innerHTML = html;
