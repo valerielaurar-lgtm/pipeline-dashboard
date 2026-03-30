@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Health Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --white: #ffffff;
+      --text: #1e2a3a;
+      --text-dim: #6b7a8d;
+      --border: #e2e6ec;
+      --accent: #0ea5a0;
+      --green: #0ea570;
+      --green-bg: #e6f7ef;
+      --orange: #e07a2f;
+      --orange-bg: #fdf0e4;
+      --teal: #0ea5a0;
+      --teal-bg: #e0f5f4;
+      --red: #d94052;
+      --red-bg: #fde8eb;
+      --gray: #94a3b8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 32px 48px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 28px;
+      padding-top: 20px;
+      background: var(--white);
+      padding-left: 32px;
+      padding-right: 32px;
+    }
+    .tab {
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* KPI Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 26px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .kpi-value {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      color: var(--text);
+    }
+
+    /* Funnel Banner */
+    .funnel-banner {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 14px 22px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    .funnel-banner strong { color: var(--text); font-weight: 600; }
+    .funnel-banner .gate { color: var(--red); font-weight: 700; }
+    .funnel-arrow { color: var(--gray); margin: 0 4px; }
+
+    /* Section */
+    .section { margin-bottom: 32px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+    .section-bar {
+      width: 4px;
+      height: 20px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+    .section-title { font-size: 16px; font-weight: 700; }
+    .section-count { font-size: 14px; color: var(--text-dim); }
+
+    /* Table */
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .data-table thead th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      background: #fafbfc;
+      white-space: nowrap;
+    }
+    .data-table thead th.num { text-align: center; }
+    .data-table tbody tr { transition: background 0.1s; }
+    .data-table tbody tr:hover { background: #f8f9fb; }
+    .data-table tbody tr:not(:last-child) td { border-bottom: 1px solid #f0f2f5; }
+    .data-table tbody td {
+      padding: 14px 16px;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+    .data-table tbody td.num {
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+    .data-table tbody td.role-cell { font-weight: 600; max-width: 240px; }
+    .data-table tbody td.dept-cell { color: var(--text-dim); }
+    .data-table tbody td.age-cell { font-variant-numeric: tabular-nums; }
+    .data-table tbody td.recruiter-cell { color: var(--text-dim); font-size: 13px; }
+    .data-table tbody td.hires-cell { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* Health Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .badge.on_track  { background: var(--green-bg); color: var(--green); }
+    .badge.secured   { background: var(--teal-bg);  color: var(--teal); }
+    .badge.covered   { background: var(--teal-bg);  color: var(--teal); }
+    .badge.at_risk   { background: var(--orange-bg); color: var(--orange); }
+    .badge.empty     { background: #f1f5f9;         color: var(--gray); }
+    .badge.healthy   { background: var(--green-bg); color: var(--green); }
+    .badge.unhealthy { background: var(--red-bg);   color: var(--red); }
+
+    .highlight-post { color: var(--accent); font-weight: 700 !important; }
+    .highlight-cultural { color: #d97706; font-weight: 700 !important; }
+    .highlight-offer { color: var(--green); font-weight: 700 !important; }
+    .zero { color: #c5cdd8; }
+
+    /* SLA Badges */
+    .sla-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .pos-multi {
+      color: var(--accent) !important;
+      font-weight: 700 !important;
+    }
+    .sla-badge.overdue { background: var(--red); color: #fff; }
+    .sla-badge.warning { background: var(--orange); color: #fff; }
+    .sla-badge.filling { background: var(--green); color: #fff; }
+
+    /* Empty section */
+    .empty-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .empty-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .empty-card .name { font-size: 14px; font-weight: 600; }
+    .empty-card .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .empty-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #e2e6ec;
+    }
+
+    /* Issue type badges */
+    .issue-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .issue-badge.quality      { background: #fef3c7; color: #92400e; }
+    .issue-badge.calibration  { background: #ede9fe; color: #5b21b6; }
+    .issue-badge.risk         { background: var(--red-bg); color: var(--red); }
+    .issue-badge.sustainability { background: var(--orange-bg); color: var(--orange); }
+    .issue-badge.stakeholder  { background: #dbeafe; color: #1e40af; }
+
+    /* Red-flagged row */
+    .row-flagged td { background: #fff5f5 !important; }
+
+    /* Tab content containers */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Passthrough rate cards */
+    .passthrough-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .passthrough-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 18px 22px;
+      text-align: center;
+    }
+    .passthrough-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .passthrough-value {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: var(--accent);
+    }
+
+    @media (max-width: 1000px) {
+      .kpi-row { grid-template-columns: 1fr; }
+      .passthrough-row { grid-template-columns: repeat(2, 1fr); }
+      .data-table { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="tabs" id="tab-bar">
+    <div class="tab" data-tab="overview">Overview</div>
+    <div class="tab active" data-tab="pipeline">Pipeline Health</div>
+    <div class="tab" data-tab="recruiter">Recruiter</div>
+    <div class="tab" data-tab="department">Department</div>
+    <div class="tab" data-tab="performance">Hiring Performance</div>
+    <div class="tab" data-tab="effectiveness">Effectiveness</div>
+  </div>
+
+  <div class="container">
+    <div class="tab-content" id="tab-overview"></div>
+    <div class="tab-content active" id="tab-pipeline"></div>
+    <div class="tab-content" id="tab-recruiter"></div>
+    <div class="tab-content" id="tab-department"></div>
+    <div class="tab-content" id="tab-performance"></div>
+    <div class="tab-content" id="tab-effectiveness"></div>
+  </div>
+
+  <script>
+    var RAW = {"kpis": {"weighted_pipeline": 30.8, "post_gate": 30, "pre_gate": 978}, "jobs": [{"id": 4295135101, "name": "Sr. Full Stack Developer, USA", "dept": "Tech", "positions": 1, "age_days": 152, "health": "at_risk", "early": 1, "screened": 1, "pre_gate": 18, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 2.21, "recruiter": "Valerie Rouan", "section": "pre_gate", "total": 20, "sla_status": "overdue", "sla_remaining": -92}, {"id": 4388850101, "name": "DevOps Engineer", "dept": "Tech", "positions": 1, "age_days": 47, "health": "secured", "early": 118, "screened": 12, "pre_gate": 0, "technical": 3, "cultural": 0, "offer": 0, "exp_hires": 2.17, "recruiter": "Farshad Aslani", "section": "technical", "total": 133, "sla_status": "warning", "sla_remaining": 13}, {"id": 4294303101, "name": "Customer Success Manager", "dept": "Customer Success", "positions": 4, "age_days": 95, "health": "covered", "early": 69, "screened": 0, "pre_gate": 9, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 2.13, "recruiter": "Laine Anderson", "section": "technical", "total": 80, "sla_status": "overdue", "sla_remaining": -35}, {"id": 4412775101, "name": "Operations Intern", "dept": "Operations", "positions": 1, "age_days": 31, "health": "on_track", "early": 2, "screened": 0, "pre_gate": 5, "technical": 2, "cultural": 0, "offer": 1, "exp_hires": 2.07, "recruiter": "Valerie Rouan", "section": "offer", "total": 10, "sla_status": "filling", "sla_remaining": 29}, {"id": 4300540101, "name": "Sr. Product Manager", "dept": "Product", "positions": 1, "age_days": 24, "health": "on_track", "early": 15, "screened": 3, "pre_gate": 0, "technical": 3, "cultural": 0, "offer": 1, "exp_hires": 1.94, "recruiter": "Valerie Rouan", "section": "offer", "total": 22, "sla_status": "filling", "sla_remaining": 36}, {"id": 4419847101, "name": "Ordering CS Agent", "dept": "Customer Support", "positions": 1, "age_days": 69, "health": "covered", "early": 110, "screened": 9, "pre_gate": 2, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 1.73, "recruiter": "Farshad Aslani", "section": "technical", "total": 122, "sla_status": "overdue", "sla_remaining": -9}, {"id": 4420949101, "name": "CO Sourcing Agent", "dept": "Customer Support", "positions": 1, "age_days": 11, "health": "covered", "early": 143, "screened": 2, "pre_gate": 1, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 1.34, "recruiter": "Farshad Aslani", "section": "pre_gate", "total": 146, "sla_status": "ok", "sla_remaining": 49}, {"id": 4443465101, "name": "Confidential 1", "dept": "People", "positions": 1, "age_days": 27, "health": "on_track", "early": 0, "screened": 0, "pre_gate": 2, "technical": 0, "cultural": 0, "offer": 1, "exp_hires": 1.19, "recruiter": "Valerie Rouan", "section": "offer", "total": 3, "sla_status": "filling", "sla_remaining": 33}, {"id": 4393283101, "name": "Sr. Full Stack Engineer", "dept": "Tech", "positions": 4, "age_days": 83, "health": "covered", "early": 13, "screened": 5, "pre_gate": 5, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 1.15, "recruiter": "Kylie Hoffman", "section": "technical", "total": 24, "sla_status": "overdue", "sla_remaining": -23}, {"id": 4420956101, "name": "ASM", "dept": "Operations", "positions": 2, "age_days": 59, "health": "covered", "early": 22, "screened": 3, "pre_gate": 2, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 1.04, "recruiter": "Farshad Aslani", "section": "technical", "total": 29, "sla_status": "warning", "sla_remaining": 1}, {"id": 4415470101, "name": "CO AI Project Manager", "dept": "Customer Support", "positions": 1, "age_days": 74, "health": "covered", "early": 57, "screened": 1, "pre_gate": 2, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.99, "recruiter": "Farshad Aslani", "section": "technical", "total": 61, "sla_status": "overdue", "sla_remaining": -14}, {"id": 4407310101, "name": "CSM Team Lead - USA", "dept": "Customer Success", "positions": 1, "age_days": 108, "health": "at_risk", "early": 78, "screened": 3, "pre_gate": 2, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.98, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 83, "sla_status": "overdue", "sla_remaining": -48}, {"id": 4323021101, "name": "Customer Success Manager, USA", "dept": "Customer Success", "positions": 1, "age_days": 122, "health": "at_risk", "early": 15, "screened": 8, "pre_gate": 4, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.92, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 27, "sla_status": "overdue", "sla_remaining": -62}, {"id": 4425322101, "name": "Senior/Principal SEO, GEO & Search Systems", "dept": "Marketing", "positions": 1, "age_days": 51, "health": "covered", "early": 6, "screened": 1, "pre_gate": 2, "technical": 0, "cultural": 1, "offer": 0, "exp_hires": 0.88, "recruiter": "Valerie Rouan", "section": "cultural", "total": 10, "sla_status": "warning", "sla_remaining": 9}, {"id": 4398982101, "name": "US Onboarding Specialist", "dept": "Customer Success", "positions": 1, "age_days": 116, "health": "covered", "early": 0, "screened": 15, "pre_gate": 0, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.85, "recruiter": "Laine Anderson", "section": "technical", "total": 16, "sla_status": "overdue", "sla_remaining": -56}, {"id": 4446079101, "name": "Confidential 2", "dept": "People", "positions": 1, "age_days": 10, "health": "covered", "early": 0, "screened": 2, "pre_gate": 2, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 0.82, "recruiter": "Valerie Rouan", "section": "technical", "total": 6, "sla_status": "ok", "sla_remaining": 50}, {"id": 4396629101, "name": "People Ops", "dept": "People", "positions": 1, "age_days": 116, "health": "covered", "early": 0, "screened": 0, "pre_gate": 2, "technical": 0, "cultural": 1, "offer": 0, "exp_hires": 0.79, "recruiter": "Valerie Rouan", "section": "cultural", "total": 3, "sla_status": "overdue", "sla_remaining": -56}, {"id": 4435923101, "name": "Group CO Manager", "dept": "Customer Support", "positions": 1, "age_days": 25, "health": "covered", "early": 3, "screened": 0, "pre_gate": 2, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 0.76, "recruiter": "Valerie Rouan", "section": "technical", "total": 7, "sla_status": "ok", "sla_remaining": 35}, {"id": 4437906101, "name": "BDR Manager, USA", "dept": "BDR", "positions": 1, "age_days": 13, "health": "covered", "early": 4, "screened": 3, "pre_gate": 3, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.76, "recruiter": "Laine Anderson", "section": "technical", "total": 11, "sla_status": "ok", "sla_remaining": 47}, {"id": 4423304101, "name": "Senior Account Manager", "dept": "Sales", "positions": 1, "age_days": 60, "health": "covered", "early": 56, "screened": 1, "pre_gate": 2, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.73, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 59, "sla_status": "warning", "sla_remaining": 0}, {"id": 4366302101, "name": "Strategy Associate Intern", "dept": "Revenue", "positions": 1, "age_days": 60, "health": "covered", "early": 11, "screened": 0, "pre_gate": 1, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 0.71, "recruiter": "Valerie Rouan", "section": "technical", "total": 14, "sla_status": "warning", "sla_remaining": 0}, {"id": 4420266101, "name": "OEM Specialist", "dept": "Operations", "positions": 1, "age_days": 61, "health": "covered", "early": 1, "screened": 4, "pre_gate": 2, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.66, "recruiter": "Laine Anderson", "section": "technical", "total": 8, "sla_status": "overdue", "sla_remaining": -1}, {"id": 4413351101, "name": "Product & Brand Marketing Lead", "dept": "Marketing", "positions": 1, "age_days": 40, "health": "covered", "early": 6, "screened": 2, "pre_gate": 0, "technical": 2, "cultural": 0, "offer": 0, "exp_hires": 0.63, "recruiter": "Valerie Rouan", "section": "technical", "total": 10, "sla_status": "ok", "sla_remaining": 20}, {"id": 4415181101, "name": "Security Specialist", "dept": "Tech", "positions": 1, "age_days": 39, "health": "covered", "early": 16, "screened": 5, "pre_gate": 0, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.58, "recruiter": "Farshad Aslani", "section": "technical", "total": 22, "sla_status": "ok", "sla_remaining": 21}, {"id": 4413225101, "name": "Sales Manager - North America", "dept": "Sales", "positions": 1, "age_days": 81, "health": "at_risk", "early": 4, "screened": 4, "pre_gate": 3, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.55, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 11, "sla_status": "overdue", "sla_remaining": -21}, {"id": 4437908101, "name": "Revenue Operations Analyst", "dept": "Revenue", "positions": 1, "age_days": 13, "health": "covered", "early": 16, "screened": 4, "pre_gate": 2, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.53, "recruiter": "Kylie Hoffman", "section": "pre_gate", "total": 22, "sla_status": "ok", "sla_remaining": 47}, {"id": 4375421101, "name": "CSM Team Lead", "dept": "Customer Success", "positions": 1, "age_days": 137, "health": "at_risk", "early": 3, "screened": 2, "pre_gate": 3, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.46, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 8, "sla_status": "overdue", "sla_remaining": -77}, {"id": 4421422101, "name": "Account Manager New York", "dept": "Sales", "positions": 1, "age_days": 62, "health": "at_risk", "early": 4, "screened": 8, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.35, "recruiter": "Laine Anderson", "section": "screened", "total": 12, "sla_status": "overdue", "sla_remaining": -2}, {"id": 4307091101, "name": "Account Executive New York", "dept": "Sales", "positions": 1, "age_days": 96, "health": "covered", "early": 9, "screened": 0, "pre_gate": 0, "technical": 1, "cultural": 0, "offer": 0, "exp_hires": 0.32, "recruiter": "Laine Anderson", "section": "technical", "total": 10, "sla_status": "overdue", "sla_remaining": -36}, {"id": 4437907101, "name": "Growth Lead", "dept": "Marketing", "positions": 1, "age_days": 13, "health": "covered", "early": 10, "screened": 3, "pre_gate": 1, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.32, "recruiter": "Kylie Hoffman", "section": "pre_gate", "total": 14, "sla_status": "ok", "sla_remaining": 47}, {"id": 4398674101, "name": "Account Executive DACH, Amsterdam", "dept": "Sales", "positions": 1, "age_days": 131, "health": "at_risk", "early": 0, "screened": 1, "pre_gate": 1, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.16, "recruiter": "Laine Anderson", "section": "pre_gate", "total": 2, "sla_status": "overdue", "sla_remaining": -71}, {"id": 4402778101, "name": "Business Development Representative DACH", "dept": "BDR", "positions": 1, "age_days": 121, "health": "at_risk", "early": 0, "screened": 2, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.08, "recruiter": "Valerie Rouan", "section": "screened", "total": 2, "sla_status": "overdue", "sla_remaining": -61}, {"id": 4444188101, "name": "Content & Process Writer Internship", "dept": "Operations", "positions": 1, "age_days": 12, "health": "covered", "early": 2, "screened": 0, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.02, "recruiter": "Kylie Hoffman", "section": "early", "total": 2, "sla_status": "ok", "sla_remaining": 48}, {"id": 4444941101, "name": "Freelance Group CO Manager", "dept": "Customer Support", "positions": 1, "age_days": 12, "health": "covered", "early": 2, "screened": 0, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.02, "recruiter": "Valerie Rouan", "section": "early", "total": 2, "sla_status": "ok", "sla_remaining": 48}, {"id": 4446555101, "name": "AI Product Manager", "dept": "Product", "positions": 1, "age_days": -5, "health": "empty", "early": 0, "screened": 0, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.0, "recruiter": "Farshad Aslani", "section": "empty", "total": 0, "sla_status": "ok", "sla_remaining": 65}, {"id": 4447727101, "name": "This is a Test Hibob", "dept": "People", "positions": 1, "age_days": 5, "health": "empty", "early": 0, "screened": 0, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.0, "recruiter": "Kylie Hoffman", "section": "empty", "total": 0, "sla_status": "ok", "sla_remaining": 55}, {"id": 4447737101, "name": "HR BP", "dept": "People", "positions": 1, "age_days": -5, "health": "empty", "early": 0, "screened": 0, "pre_gate": 0, "technical": 0, "cultural": 0, "offer": 0, "exp_hires": 0.0, "recruiter": "Valerie Rouan", "section": "empty", "total": 0, "sla_status": "ok", "sla_remaining": 65}]};
+    var FILLED = [{"job_name": "IT Manager", "dept": "Tech", "recruiter": "Kylie Hoffman", "opened_at": "2026-02-18", "closed_at": "2026-03-29", "ttf_days": 39, "reason": "Hire - New Headcount"}, {"job_name": "Data Engineer", "dept": "Tech", "recruiter": "Valerie Rouan", "opened_at": "2026-01-30", "closed_at": "2026-03-23", "ttf_days": 52, "reason": "Hire - New Headcount"}, {"job_name": "Customer Operations Team lead", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2025-11-18", "closed_at": "2026-03-20", "ttf_days": 121, "reason": "Hire - New Headcount"}, {"job_name": "Strategic Finance Analyst", "dept": "Finance", "recruiter": "Farshad Aslani", "opened_at": "2025-11-19", "closed_at": "2026-03-20", "ttf_days": 120, "reason": "Hire - New Headcount"}, {"job_name": "Senior Customer Support Agent - South Africa", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-19", "closed_at": "2026-03-19", "ttf_days": 58, "reason": "Hire - New Headcount"}, {"job_name": "Senior Customer Support Agent - South Africa", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-19", "closed_at": "2026-03-18", "ttf_days": 57, "reason": "Hire - New Headcount"}, {"job_name": "Senior Customer Support Agent - South Africa", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-19", "closed_at": "2026-03-18", "ttf_days": 58, "reason": "Hire - New Headcount"}, {"job_name": "Order management - CS Agent - Guatemala- Zcaler", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-22", "closed_at": "2026-03-18", "ttf_days": 54, "reason": "Hire - New Headcount"}, {"job_name": "Senior Customer Support Agent - Guatemala - Zcaler", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-02-09", "closed_at": "2026-03-18", "ttf_days": 36, "reason": "Hire - New Headcount"}, {"job_name": "Business Controller", "dept": "Finance", "recruiter": "Farshad Aslani", "opened_at": "2026-03-11", "closed_at": "2026-03-17", "ttf_days": 5, "reason": "Hire - New Headcount"}, {"job_name": "Technical Support Agent", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-16", "closed_at": "2026-03-12", "ttf_days": 54, "reason": "Hire - Backfill"}, {"job_name": "Sr. Full Stack Engineer", "dept": "Tech", "recruiter": "Kylie Hoffman", "opened_at": "2025-10-29", "closed_at": "2026-03-11", "ttf_days": 133, "reason": "Hire - New Headcount"}, {"job_name": "Vendor Specialist", "dept": "Operations", "recruiter": "Valerie Rouan", "opened_at": "2026-02-09", "closed_at": "2026-03-11", "ttf_days": 30, "reason": "Hire - New Headcount"}, {"job_name": "Sr. Full Stack Engineer", "dept": "Tech", "recruiter": "Kylie Hoffman", "opened_at": "2025-10-29", "closed_at": "2026-03-07", "ttf_days": 129, "reason": "Hire - New Headcount"}, {"job_name": "Sr. Product Manager", "dept": "Product", "recruiter": "Valerie Rouan", "opened_at": "2025-11-04", "closed_at": "2026-03-05", "ttf_days": 121, "reason": "Hire - New Headcount"}, {"job_name": "Senior Customer Support Agent - South Africa", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-12", "closed_at": "2026-03-05", "ttf_days": 52, "reason": "Hire - New Headcount"}, {"job_name": "CO Sourcing Agent", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-21", "closed_at": "2026-03-03", "ttf_days": 40, "reason": "Hire - New Headcount"}, {"job_name": "CO Sourcing Team Lead", "dept": "Customer Support", "recruiter": "Valerie Rouan", "opened_at": "2026-01-21", "closed_at": "2026-02-27", "ttf_days": 37, "reason": "Hire - Backfill"}, {"job_name": "Business Development Representative, NY", "dept": "BDR", "recruiter": "Valerie Rouan", "opened_at": "2026-02-24", "closed_at": "2026-02-24", "ttf_days": 0, "reason": "Hire - Backfill"}, {"job_name": "Creative Producer", "dept": "Marketing", "recruiter": "Valerie Rouan", "opened_at": "2025-12-31", "closed_at": "2026-02-16", "ttf_days": 47, "reason": "Hire - New Headcount"}, {"job_name": "Business Development Representative, NY", "dept": "BDR", "recruiter": "Valerie Rouan", "opened_at": "2026-02-15", "closed_at": "2026-02-15", "ttf_days": 0, "reason": "Hire - New Headcount"}, {"job_name": "Sr. Full Stack Engineer", "dept": "Tech", "recruiter": "Kylie Hoffman", "opened_at": "2025-10-29", "closed_at": "2026-02-13", "ttf_days": 107, "reason": "Hire - New Headcount"}, {"job_name": "Operations Intern", "dept": "Operations", "recruiter": "Valerie Rouan", "opened_at": "2026-01-11", "closed_at": "2026-02-03", "ttf_days": 23, "reason": "Hire - New Headcount"}, {"job_name": "Senior Talent Acquisition Specialist", "dept": "People", "recruiter": "Bas Bosch van Rosenthal", "opened_at": "2025-11-19", "closed_at": "2026-02-01", "ttf_days": 74, "reason": "Hire - New Headcount"}, {"job_name": "M&D Escalation Analyst/ASM", "dept": "Operations", "recruiter": "Valerie Rouan", "opened_at": "2025-11-13", "closed_at": "2026-01-27", "ttf_days": 75, "reason": "Hire - New Headcount"}, {"job_name": "M&D Escalation Analyst/ASM", "dept": "Operations", "recruiter": "Valerie Rouan", "opened_at": "2026-01-23", "closed_at": "2026-01-24", "ttf_days": 1, "reason": "Hire - New Headcount"}, {"job_name": "CSM - Internship", "dept": "Customer Success", "recruiter": "Laine Anderson", "opened_at": "2025-10-23", "closed_at": "2026-01-22", "ttf_days": 91, "reason": "Hire - New Headcount"}, {"job_name": "Business Development Representative French", "dept": "BDR", "recruiter": "Valerie Rouan", "opened_at": "2026-01-21", "closed_at": "2026-01-21", "ttf_days": 0, "reason": "Hire - New Headcount"}, {"job_name": "Technical Support Agent", "dept": "Customer Support", "recruiter": "Farshad Aslani", "opened_at": "2026-01-12", "closed_at": "2026-01-16", "ttf_days": 4, "reason": "Hire - New Headcount"}, {"job_name": "Account Executive, Amsterdam", "dept": "Sales", "recruiter": "Laine Anderson", "opened_at": "2025-12-19", "closed_at": "2026-01-13", "ttf_days": 24, "reason": "Hire - New Headcount"}, {"job_name": "Operations Specialist (3PL Management)", "dept": "Operations", "recruiter": "Farshad Aslani", "opened_at": "2025-12-19", "closed_at": "2026-01-12", "ttf_days": 24, "reason": "Hire - New Headcount"}];
+    var ANALYTICS = {"rejection_by_stage": {"Application Review": 47647, "Team Fit": 552, "TA Screening": 1800, "Technical": 391, "Offer": 24, "Cultural": 59, "Technical case study & interview": 6, "Hiring Manager Screening": 6, "Cultural Interview": 1, "HM Screening": 12, "Automated Reference With Zinc": 1, "Meeting Joeri - Team fit": 2, "TA First Review": 10, "Unknown": 246}, "rejection_by_stage_excl_intern": {"Application Review": 46755, "TA Screening": 1747, "Team Fit": 507, "Technical": 360, "Offer": 21, "Cultural": 56, "Technical case study & interview": 6, "Hiring Manager Screening": 6, "Cultural Interview": 1, "Meeting Joeri - Team fit": 2, "TA First Review": 10, "Unknown": 246}, "rejection_by_stage_excl_product_tech": {"Application Review": 39394, "TA Screening": 1212, "Team Fit": 388, "Technical": 273, "Offer": 20, "Cultural": 44, "Hiring Manager Screening": 6, "Technical case study & interview": 1, "Cultural Interview": 1, "HM Screening": 12, "Meeting Joeri - Team fit": 2, "TA First Review": 10, "Unknown": 246}, "per_recruiter": {"Ashraf Khan": {"open_roles": 0, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 3, "post_gate": 3}, "Bas Bosch van Rosenthal": {"open_roles": 0, "filled_2026": 1, "avg_ttf": 74.0, "sla_rate": 0.0, "at_risk": 0, "total_candidates": 0, "post_gate": 0}, "Bea Zapata Padilla": {"open_roles": 0, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 54, "post_gate": 9}, "Farshad Aslani": {"open_roles": 5, "filled_2026": 13, "avg_ttf": 52.5, "sla_rate": 38.5, "at_risk": 0, "total_candidates": 542, "post_gate": 45}, "Hicham Samma": {"open_roles": 1, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 0, "post_gate": 0}, "Kylie Hoffman": {"open_roles": 3, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 52, "post_gate": 16}, "Laine Anderson": {"open_roles": 12, "filled_2026": 2, "avg_ttf": 57.5, "sla_rate": 50.0, "at_risk": 2, "total_candidates": 329, "post_gate": 97}, "Noelia Oriola": {"open_roles": 0, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 204, "post_gate": 15}, "Valerie Rouan": {"open_roles": 19, "filled_2026": 14, "avg_ttf": 53.9, "sla_rate": 50.0, "at_risk": 1, "total_candidates": 185, "post_gate": 74}, "Zayd Ahmad Shahizam": {"open_roles": 0, "filled_2026": 0, "avg_ttf": 0, "sla_rate": 0, "at_risk": 0, "total_candidates": 2, "post_gate": 0}}, "per_department": {"BDR": {"open_roles": 2, "positions": 2, "avg_age": 67.0, "total_candidates": 24, "per_stage": {"early": 12, "screened": 6, "team_fit": 3, "technical": 3, "cultural": 0, "offer": 0}, "filled_2026": 3, "avg_ttf": 0.0}, "Customer Success": {"open_roles": 5, "positions": 8, "avg_age": 246.0, "total_candidates": 179, "per_stage": {"early": 126, "screened": 33, "team_fit": 16, "technical": 4, "cultural": 0, "offer": 0}, "filled_2026": 1, "avg_ttf": 91.0}, "Customer Support": {"open_roles": 5, "positions": 5, "avg_age": 33.0, "total_candidates": 287, "per_stage": {"early": 264, "screened": 14, "team_fit": 6, "technical": 3, "cultural": 0, "offer": 0}, "filled_2026": 11, "avg_ttf": 51.9}, "Finance": {"open_roles": 0, "positions": 0, "avg_age": 0, "total_candidates": 19, "per_stage": {"early": 15, "screened": 3, "team_fit": 0, "technical": 0, "cultural": 1, "offer": 0}, "filled_2026": 2, "avg_ttf": 62.5}, "Marketing": {"open_roles": 4, "positions": 5, "avg_age": 31.0, "total_candidates": 99, "per_stage": {"early": 82, "screened": 8, "team_fit": 5, "technical": 4, "cultural": 0, "offer": 0}, "filled_2026": 1, "avg_ttf": 47.0}, "Operations": {"open_roles": 4, "positions": 4, "avg_age": 35.8, "total_candidates": 44, "per_stage": {"early": 25, "screened": 5, "team_fit": 8, "technical": 6, "cultural": 0, "offer": 0}, "filled_2026": 5, "avg_ttf": 30.6}, "People": {"open_roles": 4, "positions": 4, "avg_age": 36.0, "total_candidates": 9, "per_stage": {"early": 0, "screened": 0, "team_fit": 8, "technical": 1, "cultural": 0, "offer": 0}, "filled_2026": 1, "avg_ttf": 74.0}, "Procurement": {"open_roles": 0, "positions": 0, "avg_age": 0, "total_candidates": 9, "per_stage": {"early": 6, "screened": 0, "team_fit": 0, "technical": 2, "cultural": 0, "offer": 1}, "filled_2026": 0, "avg_ttf": 0}, "Product": {"open_roles": 3, "positions": 3, "avg_age": 179.3, "total_candidates": 158, "per_stage": {"early": 147, "screened": 5, "team_fit": 2, "technical": 2, "cultural": 1, "offer": 1}, "filled_2026": 1, "avg_ttf": 121.0}, "Revenue": {"open_roles": 2, "positions": 2, "avg_age": 36.5, "total_candidates": 25, "per_stage": {"early": 17, "screened": 3, "team_fit": 4, "technical": 1, "cultural": 0, "offer": 0}, "filled_2026": 0, "avg_ttf": 0}, "Sales": {"open_roles": 5, "positions": 5, "avg_age": 81.8, "total_candidates": 226, "per_stage": {"early": 182, "screened": 33, "team_fit": 10, "technical": 1, "cultural": 0, "offer": 0}, "filled_2026": 1, "avg_ttf": 24.0}, "Tech": {"open_roles": 6, "positions": 9, "avg_age": 71.8, "total_candidates": 304, "per_stage": {"early": 248, "screened": 22, "team_fit": 27, "technical": 7, "cultural": 0, "offer": 0}, "filled_2026": 4, "avg_ttf": 105.2}, "Unknown": {"open_roles": 0, "positions": 0, "avg_age": 0, "total_candidates": 8, "per_stage": {"early": 8, "screened": 0, "team_fit": 0, "technical": 0, "cultural": 0, "offer": 0}, "filled_2026": 0, "avg_ttf": 0}}, "passthrough_rates": {"screening_to_teamfit": 33.8, "teamfit_to_technical": 40.4, "technical_to_cultural": 10.4, "cultural_to_offer": 28.6, "teamfit_to_cultural": 4.2}, "per_role_health": [{"name": "Customer Success Manager", "dept": "Customer Success", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Sr. Full Stack Developer, USA", "dept": "Tech", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Sr. Product Manager", "dept": "Product", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Account Executive New York", "dept": "Sales", "recruiter": "Laine Anderson", "healthy": true}, {"name": "USA Customer Success Manager", "dept": "Customer Success", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Strategy Associate Intern", "dept": "Revenue", "recruiter": "Valerie Rouan", "healthy": false, "issue": "quality", "reason": "High volume (319 applicants) but only 12 passed screening (3.8%)"}, {"name": "CSM Team Lead", "dept": "Customer Success", "recruiter": "Laine Anderson", "healthy": true}, {"name": "DevOps Engineer", "dept": "Tech", "recruiter": "Farshad Aslani", "healthy": true}, {"name": "Sr. Full Stack Engineer", "dept": "Tech", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "People Ops", "dept": "People", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Account Executive DACH, Amsterdam", "dept": "Sales", "recruiter": "Laine Anderson", "healthy": true}, {"name": "US Onboarding Specialist", "dept": "Customer Success", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Business Development Representative DACH", "dept": "BDR", "recruiter": "Valerie Rouan", "healthy": false, "issue": "sustainability", "reason": "Only 2 in advanced stages with 1 in early pipeline; thin backup"}, {"name": "CSM Team Lead - USA", "dept": "Customer Success", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Freelance Sr. Product Manager", "dept": "Product", "recruiter": "Valerie Rouan", "healthy": false, "issue": "risk", "reason": "No active candidates, role open 99d"}, {"name": "Operations Intern", "dept": "Operations", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Sales Manager - North America", "dept": "Sales", "recruiter": "Laine Anderson", "healthy": false, "issue": "stakeholder", "reason": "14 candidates in screening/team fit but none advanced to technical; possible HM bottleneck"}, {"name": "Product & Brand Marketing Lead", "dept": "Marketing", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Security Specialist", "dept": "Tech", "recruiter": "Valerie Rouan", "healthy": false, "issue": "quality", "reason": "High volume (287 applicants) but only 4 passed screening (1.4%)"}, {"name": "IT Manager", "dept": "Tech", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "CO AI Project Manager", "dept": "Customer Support", "recruiter": "Farshad Aslani", "healthy": false, "issue": "quality", "reason": "High volume (312 applicants) but only 15 passed screening (4.8%)"}, {"name": "Ordering CS Agent", "dept": "Customer Support", "recruiter": "Farshad Aslani", "healthy": false, "issue": "quality", "reason": "High volume (3314 applicants) but only 32 passed screening (1.0%)"}, {"name": "OEM Specialist", "dept": "Operations", "recruiter": "Laine Anderson", "healthy": true}, {"name": "CO Sourcing Agent", "dept": "Customer Support", "recruiter": "Farshad Aslani", "healthy": false, "issue": "quality", "reason": "High volume (459 applicants) but only 15 passed screening (3.3%)"}, {"name": "ASM", "dept": "Operations", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Account Manager New York", "dept": "Sales", "recruiter": "Laine Anderson", "healthy": false, "issue": "risk", "reason": "No candidates past team fit, pipeline age 61d"}, {"name": "Senior Account Manager", "dept": "Sales", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Senior/Principal SEO, GEO & Search Systems", "dept": "Marketing", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Agency Full Stack Developer", "dept": "Tech", "recruiter": "Valerie Rouan", "healthy": false, "issue": "sustainability", "reason": "Only 2 candidate(s) in advanced stages, no backup pipeline (0 early/screened)"}, {"name": "Group CO Manager", "dept": "Customer Support", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "BDR Manager, USA", "dept": "BDR", "recruiter": "Laine Anderson", "healthy": true}, {"name": "Growth Lead", "dept": "Marketing", "recruiter": "Valerie Rouan", "healthy": false, "issue": "stakeholder", "reason": "4 candidates in screening/team fit but none advanced to technical; possible HM bottleneck"}, {"name": "Revenue Operations Analyst", "dept": "Revenue", "recruiter": "Kylie Hoffman", "healthy": false, "issue": "quality", "reason": "High volume (144 applicants) but only 7 passed screening (4.9%)"}, {"name": "Confidential 1", "dept": "People", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Content & Process Writer Internship", "dept": "Operations", "recruiter": "Kylie Hoffman", "healthy": true}, {"name": "Freelance Group CO Manager", "dept": "Customer Support", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "Confidential 2", "dept": "People", "recruiter": "Valerie Rouan", "healthy": true}, {"name": "AI Product Manager", "dept": "Product", "recruiter": "Farshad Aslani", "healthy": true}], "offer_decline_2026": {"accepted": 30, "declined": 6, "total": 36, "decline_rate": 16.7, "declined_roles": ["Vendor Specialist", "Customer Operations Team lead", "Business Development Representative French", "CSM Team Lead", "Business Development Representative DACH", "Order management - CS Agent - Guatemala- Zcaler"]}, "per_role_rejections": [{"name": "Sr. Full Stack Developer, USA", "dept": "Tech", "ta_screening": 219, "team_fit": 8, "technical": 24, "cultural": 3, "offer": 1, "total": 255}, {"name": "Sr. Product Manager", "dept": "Product", "ta_screening": 128, "team_fit": 15, "technical": 32, "cultural": 4, "offer": 1, "total": 180}, {"name": "Customer Success Manager", "dept": "Customer Success", "ta_screening": 122, "team_fit": 14, "technical": 23, "cultural": 2, "offer": 0, "total": 161}, {"name": "Sr. Full Stack Engineer", "dept": "Tech", "ta_screening": 76, "team_fit": 63, "technical": 11, "cultural": 1, "offer": 0, "total": 151}, {"name": "USA Customer Success Manager", "dept": "Customer Success", "ta_screening": 86, "team_fit": 21, "technical": 18, "cultural": 1, "offer": 0, "total": 126}, {"name": "Account Executive New York", "dept": "Sales", "ta_screening": 66, "team_fit": 27, "technical": 17, "cultural": 1, "offer": 1, "total": 112}, {"name": "CSM Team Lead", "dept": "Customer Success", "ta_screening": 16, "team_fit": 9, "technical": 6, "cultural": 0, "offer": 1, "total": 32}, {"name": "DevOps Engineer", "dept": "Tech", "ta_screening": 20, "team_fit": 6, "technical": 3, "cultural": 0, "offer": 0, "total": 29}, {"name": "US Onboarding Specialist", "dept": "Customer Success", "ta_screening": 8, "team_fit": 17, "technical": 0, "cultural": 1, "offer": 0, "total": 26}, {"name": "People Ops", "dept": "People", "ta_screening": 19, "team_fit": 3, "technical": 4, "cultural": 0, "offer": 0, "total": 26}, {"name": "Ordering CS Agent", "dept": "Customer Support", "ta_screening": 15, "team_fit": 3, "technical": 2, "cultural": 0, "offer": 0, "total": 20}, {"name": "CSM Team Lead - USA", "dept": "Customer Success", "ta_screening": 12, "team_fit": 4, "technical": 3, "cultural": 0, "offer": 0, "total": 19}, {"name": "Operations Intern", "dept": "Operations", "ta_screening": 0, "team_fit": 14, "technical": 1, "cultural": 0, "offer": 0, "total": 15}, {"name": "OEM Specialist", "dept": "Operations", "ta_screening": 9, "team_fit": 3, "technical": 3, "cultural": 0, "offer": 0, "total": 15}, {"name": "Account Executive DACH, Amsterdam", "dept": "Sales", "ta_screening": 6, "team_fit": 4, "technical": 3, "cultural": 1, "offer": 0, "total": 14}, {"name": "ASM", "dept": "Operations", "ta_screening": 9, "team_fit": 4, "technical": 0, "cultural": 0, "offer": 0, "total": 13}, {"name": "CO Sourcing Agent", "dept": "Customer Support", "ta_screening": 6, "team_fit": 3, "technical": 1, "cultural": 1, "offer": 0, "total": 11}, {"name": "CO AI Project Manager", "dept": "Customer Support", "ta_screening": 5, "team_fit": 4, "technical": 2, "cultural": 0, "offer": 0, "total": 11}, {"name": "Business Development Representative DACH", "dept": "BDR ", "ta_screening": 6, "team_fit": 1, "technical": 2, "cultural": 0, "offer": 1, "total": 10}, {"name": "Strategy Associate Intern", "dept": "Revenue", "ta_screening": 0, "team_fit": 7, "technical": 2, "cultural": 0, "offer": 0, "total": 9}, {"name": "Product & Brand Marketing Lead", "dept": "Marketing", "ta_screening": 7, "team_fit": 2, "technical": 0, "cultural": 0, "offer": 0, "total": 9}, {"name": "Account Manager New York", "dept": "Sales", "ta_screening": 5, "team_fit": 1, "technical": 1, "cultural": 0, "offer": 0, "total": 7}, {"name": "Senior Account Manager", "dept": "Sales", "ta_screening": 4, "team_fit": 1, "technical": 1, "cultural": 0, "offer": 0, "total": 6}, {"name": "IT Manager", "dept": "Tech", "ta_screening": 4, "team_fit": 1, "technical": 0, "cultural": 0, "offer": 0, "total": 5}, {"name": "Group CO Manager", "dept": "Customer Support", "ta_screening": 4, "team_fit": 1, "technical": 0, "cultural": 0, "offer": 0, "total": 5}, {"name": "Sales Manager - North America", "dept": "Sales", "ta_screening": 3, "team_fit": 1, "technical": 0, "cultural": 0, "offer": 0, "total": 4}, {"name": "Senior/Principal SEO, GEO & Search Systems", "dept": "Marketing", "ta_screening": 2, "team_fit": 1, "technical": 0, "cultural": 0, "offer": 0, "total": 3}, {"name": "Confidential 1", "dept": "People", "ta_screening": 2, "team_fit": 1, "technical": 0, "cultural": 0, "offer": 0, "total": 3}, {"name": "Agency Full Stack Developer", "dept": "Tech", "ta_screening": 0, "team_fit": 2, "technical": 0, "cultural": 0, "offer": 0, "total": 2}, {"name": "BDR Manager, USA", "dept": "BDR ", "ta_screening": 2, "team_fit": 0, "technical": 0, "cultural": 0, "offer": 0, "total": 2}, {"name": "Revenue Operations Analyst", "dept": "Revenue", "ta_screening": 2, "team_fit": 0, "technical": 0, "cultural": 0, "offer": 0, "total": 2}, {"name": "Security Specialist", "dept": "Tech", "ta_screening": 1, "team_fit": 0, "technical": 0, "cultural": 0, "offer": 0, "total": 1}], "recruiter_ta_screens": {"Valerie Rouan": {"ta_screens": 551, "roles_screened": 12}, "Bea Zapata Padilla": {"ta_screens": 33, "roles_screened": 1}, "Laine Anderson": {"ta_screens": 214, "roles_screened": 12}, "Farshad Aslani": {"ta_screens": 58, "roles_screened": 6}, "Ashraf Khan": {"ta_screens": 6, "roles_screened": 1}, "Kylie Hoffman": {"ta_screens": 2, "roles_screened": 1}}, "funnel_efficiency": [{"name": "Sales Manager - North America", "dept": "Sales", "ta_screens": 13, "team_fit_entered": 5, "technical_entered": 0, "cultural_entered": 0, "screens_per_teamfit": 2.6, "screens_per_technical": 999, "tf_to_tech_pct": 0}, {"name": "Revenue Operations Analyst", "dept": "Revenue", "ta_screens": 5, "team_fit_entered": 2, "technical_entered": 0, "cultural_entered": 0, "screens_per_teamfit": 2.5, "screens_per_technical": 999, "tf_to_tech_pct": 0}, {"name": "Confidential 1", "dept": "People", "ta_screens": 2, "team_fit_entered": 4, "technical_entered": 0, "cultural_entered": 0, "screens_per_teamfit": 0.5, "screens_per_technical": 999, "tf_to_tech_pct": 0}, {"name": "Growth Lead", "dept": "Marketing", "ta_screens": 3, "team_fit_entered": 1, "technical_entered": 0, "cultural_entered": 0, "screens_per_teamfit": 3.0, "screens_per_technical": 999, "tf_to_tech_pct": 0}, {"name": "US Onboarding Specialist", "dept": "Customer Success", "ta_screens": 23, "team_fit_entered": 18, "technical_entered": 1, "cultural_entered": 1, "screens_per_teamfit": 1.3, "screens_per_technical": 23.0, "tf_to_tech_pct": 6}, {"name": "Account Manager New York", "dept": "Sales", "ta_screens": 16, "team_fit_entered": 1, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 16.0, "screens_per_technical": 16.0, "tf_to_tech_pct": 100}, {"name": "CO Sourcing Agent", "dept": "Customer Support", "ta_screens": 10, "team_fit_entered": 3, "technical_entered": 1, "cultural_entered": 1, "screens_per_teamfit": 3.3, "screens_per_technical": 10.0, "tf_to_tech_pct": 33}, {"name": "Sr. Full Stack Developer, USA", "dept": "Tech", "ta_screens": 221, "team_fit_entered": 25, "technical_entered": 24, "cultural_entered": 3, "screens_per_teamfit": 8.8, "screens_per_technical": 9.2, "tf_to_tech_pct": 96}, {"name": "Product & Brand Marketing Lead", "dept": "Marketing", "ta_screens": 9, "team_fit_entered": 3, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 3.0, "screens_per_technical": 9.0, "tf_to_tech_pct": 33}, {"name": "Ordering CS Agent", "dept": "Customer Support", "ta_screens": 24, "team_fit_entered": 5, "technical_entered": 3, "cultural_entered": 0, "screens_per_teamfit": 4.8, "screens_per_technical": 8.0, "tf_to_tech_pct": 60}, {"name": "Sr. Full Stack Engineer", "dept": "Tech", "ta_screens": 80, "team_fit_entered": 70, "technical_entered": 11, "cultural_entered": 1, "screens_per_teamfit": 1.1, "screens_per_technical": 7.3, "tf_to_tech_pct": 16}, {"name": "IT Manager", "dept": "Tech", "ta_screens": 7, "team_fit_entered": 4, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 1.8, "screens_per_technical": 7.0, "tf_to_tech_pct": 25}, {"name": "USA Customer Success Manager", "dept": "Customer Success", "ta_screens": 97, "team_fit_entered": 23, "technical_entered": 18, "cultural_entered": 1, "screens_per_teamfit": 4.2, "screens_per_technical": 5.4, "tf_to_tech_pct": 78}, {"name": "DevOps Engineer", "dept": "Tech", "ta_screens": 31, "team_fit_entered": 6, "technical_entered": 6, "cultural_entered": 0, "screens_per_teamfit": 5.2, "screens_per_technical": 5.2, "tf_to_tech_pct": 100}, {"name": "CSM Team Lead - USA", "dept": "Customer Success", "ta_screens": 15, "team_fit_entered": 6, "technical_entered": 3, "cultural_entered": 0, "screens_per_teamfit": 2.5, "screens_per_technical": 5.0, "tf_to_tech_pct": 50}, {"name": "BDR Manager, USA", "dept": "BDR ", "ta_screens": 5, "team_fit_entered": 3, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 1.7, "screens_per_technical": 5.0, "tf_to_tech_pct": 33}, {"name": "Customer Success Manager", "dept": "Customer Success", "ta_screens": 124, "team_fit_entered": 22, "technical_entered": 26, "cultural_entered": 2, "screens_per_teamfit": 5.6, "screens_per_technical": 4.8, "tf_to_tech_pct": 118}, {"name": "People Ops", "dept": "People", "ta_screens": 19, "team_fit_entered": 6, "technical_entered": 4, "cultural_entered": 0, "screens_per_teamfit": 3.2, "screens_per_technical": 4.8, "tf_to_tech_pct": 67}, {"name": "ASM", "dept": "Operations", "ta_screens": 9, "team_fit_entered": 6, "technical_entered": 2, "cultural_entered": 0, "screens_per_teamfit": 1.5, "screens_per_technical": 4.5, "tf_to_tech_pct": 33}, {"name": "Group CO Manager", "dept": "Customer Support", "ta_screens": 4, "team_fit_entered": 3, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 1.3, "screens_per_technical": 4.0, "tf_to_tech_pct": 33}, {"name": "Sr. Product Manager", "dept": "Product", "ta_screens": 132, "team_fit_entered": 16, "technical_entered": 34, "cultural_entered": 4, "screens_per_teamfit": 8.2, "screens_per_technical": 3.9, "tf_to_tech_pct": 212}, {"name": "Account Executive New York", "dept": "Sales", "ta_screens": 66, "team_fit_entered": 30, "technical_entered": 17, "cultural_entered": 1, "screens_per_teamfit": 2.2, "screens_per_technical": 3.9, "tf_to_tech_pct": 57}, {"name": "CSM Team Lead", "dept": "Customer Success", "ta_screens": 18, "team_fit_entered": 12, "technical_entered": 6, "cultural_entered": 0, "screens_per_teamfit": 1.5, "screens_per_technical": 3.0, "tf_to_tech_pct": 50}, {"name": "OEM Specialist", "dept": "Operations", "ta_screens": 12, "team_fit_entered": 4, "technical_entered": 4, "cultural_entered": 0, "screens_per_teamfit": 3.0, "screens_per_technical": 3.0, "tf_to_tech_pct": 100}, {"name": "Senior Account Manager", "dept": "Sales", "ta_screens": 6, "team_fit_entered": 2, "technical_entered": 2, "cultural_entered": 0, "screens_per_teamfit": 3.0, "screens_per_technical": 3.0, "tf_to_tech_pct": 100}, {"name": "Security Specialist", "dept": "Tech", "ta_screens": 3, "team_fit_entered": 0, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 999, "screens_per_technical": 3.0, "tf_to_tech_pct": 0}, {"name": "Account Executive DACH, Amsterdam", "dept": "Sales", "ta_screens": 8, "team_fit_entered": 5, "technical_entered": 3, "cultural_entered": 1, "screens_per_teamfit": 1.6, "screens_per_technical": 2.7, "tf_to_tech_pct": 60}, {"name": "CO AI Project Manager", "dept": "Customer Support", "ta_screens": 6, "team_fit_entered": 6, "technical_entered": 3, "cultural_entered": 0, "screens_per_teamfit": 1.0, "screens_per_technical": 2.0, "tf_to_tech_pct": 50}, {"name": "Business Development Representative DACH", "dept": "BDR ", "ta_screens": 7, "team_fit_entered": 1, "technical_entered": 4, "cultural_entered": 0, "screens_per_teamfit": 7.0, "screens_per_technical": 1.8, "tf_to_tech_pct": 400}, {"name": "Senior/Principal SEO, GEO & Search Systems", "dept": "Marketing", "ta_screens": 3, "team_fit_entered": 4, "technical_entered": 2, "cultural_entered": 0, "screens_per_teamfit": 0.8, "screens_per_technical": 1.5, "tf_to_tech_pct": 50}, {"name": "Operations Intern", "dept": "Operations", "ta_screens": 0, "team_fit_entered": 19, "technical_entered": 4, "cultural_entered": 0, "screens_per_teamfit": 0.0, "screens_per_technical": 0.0, "tf_to_tech_pct": 21}, {"name": "Strategy Associate Intern", "dept": "Revenue", "ta_screens": 0, "team_fit_entered": 9, "technical_entered": 3, "cultural_entered": 0, "screens_per_teamfit": 0.0, "screens_per_technical": 0.0, "tf_to_tech_pct": 33}, {"name": "Agency Full Stack Developer", "dept": "Tech", "ta_screens": 0, "team_fit_entered": 2, "technical_entered": 2, "cultural_entered": 0, "screens_per_teamfit": 0.0, "screens_per_technical": 0.0, "tf_to_tech_pct": 100}, {"name": "Confidential 2", "dept": "People", "ta_screens": 0, "team_fit_entered": 2, "technical_entered": 1, "cultural_entered": 0, "screens_per_teamfit": 0.0, "screens_per_technical": 0.0, "tf_to_tech_pct": 50}]};
+
+    /* Tab switching */
+    (function() {
+      var tabs = document.querySelectorAll('#tab-bar .tab');
+      var contents = document.querySelectorAll('.tab-content');
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          tabs.forEach(function(t){ t.classList.remove('active'); });
+          contents.forEach(function(c){ c.classList.remove('active'); });
+          tab.classList.add('active');
+          var target = tab.getAttribute('data-tab');
+          document.getElementById('tab-' + target).classList.add('active');
+        });
+      });
+    })();
+
+    /* Shared helpers */
+    var EXCLUDE = ['HRBP (test)', 'Copy of Universal Template', 'Universal Template'];
+    var SECTION_ORDER = ['at_risk_section','offer','likely_to_fill','cultural','technical','pre_gate','screened','early','empty'];
+    var SECTION_LABELS = {
+      at_risk_section:'At Risk',offer:'Offer',likely_to_fill:'Likely to Fill',
+      cultural:'Culture Interview',technical:'Technical Interview',
+      pre_gate:'Team Fit',screened:'TA Screening',early:'Application Review',empty:'Empty Pipeline'
+    };
+    var HEALTH_LABELS = {on_track:'On Track',secured:'Secured',covered:'Covered',at_risk:'At Risk',empty:'Empty'};
+
+    function numCell(val, cls) {
+      if (val === 0) return '<td class="num zero">0</td>';
+      return '<td class="num ' + (cls || '') + '">' + val + '</td>';
+    }
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    /* Filter jobs */
+    var jobs = RAW.jobs.filter(function(j){
+      return EXCLUDE.indexOf(j.name) === -1 && j.name.indexOf('Freelance') !== 0;
+    });
+    var kpis = RAW.kpis;
+
+    /* Pre-compute filled stats */
+    var totalFilled = FILLED.length;
+    var avgTTF = totalFilled > 0 ? Math.round(FILLED.reduce(function(s,f){return s+f.ttf_days},0)/totalFilled) : 0;
+    var withinSLA = FILLED.filter(function(f){return f.ttf_days<=60}).length;
+    var overSLA = totalFilled - withinSLA;
+    var slaRate = totalFilled > 0 ? Math.round((withinSLA/totalFilled)*100) : 0;
+    var opened2026 = FILLED.filter(function(f){return f.opened_at.startsWith('2026')});
+    var opened2026sla = opened2026.filter(function(f){return f.ttf_days<=60}).length;
+    var opened2025 = FILLED.filter(function(f){return f.opened_at.startsWith('2025')});
+    var avg2025 = opened2025.length > 0 ? Math.round(opened2025.reduce(function(s,f){return s+f.ttf_days},0)/opened2025.length) : 0;
+
+    /* ================================================================
+       TAB: PIPELINE HEALTH
+       ================================================================ */
+    function renderPipeline() {
+      var groups = {};
+      for (var i = 0; i < jobs.length; i++) {
+        var j = jobs[i];
+        var sec;
+        if (j.health === 'at_risk') sec = 'at_risk_section';
+        else if (j.section !== 'offer' && (j.technical + j.cultural) >= 3) sec = 'likely_to_fill';
+        else sec = j.section;
+        if (!groups[sec]) groups[sec] = [];
+        groups[sec].push(j);
+      }
+
+      var likelyToFill14d = jobs.filter(function(j){ return (j.technical + j.cultural) >= 3 || j.offer > 0; });
+      var likelyWithinSLA = jobs.filter(function(j){ return (j.technical + j.cultural + j.offer) > 0 && j.sla_remaining >= 0; });
+      var atRiskJobs = jobs.filter(function(j){ return j.total > 0 && j.pre_gate < 3 && j.technical === 0 && j.cultural === 0 && j.offer === 0; });
+      var fill14Names = likelyToFill14d.map(function(j){return j.name});
+      var slaNames = likelyWithinSLA.map(function(j){return j.name});
+      var internJobs = jobs.filter(function(j){ return /intern/i.test(j.name); });
+      var fullTimeJobs = jobs.filter(function(j){ return !/intern/i.test(j.name); });
+      var totalOpenPositions = fullTimeJobs.reduce(function(s,j){return s+j.positions},0);
+      var internPositions = internJobs.reduce(function(s,j){return s+j.positions},0);
+      var likelyToHireCount = jobs.filter(function(j){return (j.technical + j.cultural + j.offer) > 0}).length;
+
+      var html = '<div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">' +
+        '<div class="kpi-card" style="border-left:4px solid var(--text)"><div class="kpi-label">Open Positions</div><div class="kpi-value">' + totalOpenPositions + '<span style="font-size:18px;color:var(--text-dim)"> + ' + internPositions + ' intern</span></div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + fullTimeJobs.length + ' roles + ' + internJobs.length + ' intern, ' + likelyToHireCount + ' likely to hire</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--green)"><div class="kpi-label">Likely to Fill (14d)</div><div class="kpi-value" style="color:var(--green)">' + likelyToFill14d.length + '</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + fill14Names.slice(0,3).join(', ') + (fill14Names.length > 3 ? '...' : '') + '</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--accent)"><div class="kpi-label">Likely to Hire Within SLA</div><div class="kpi-value" style="color:var(--accent)">' + likelyWithinSLA.length + '</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + slaNames.slice(0,3).join(', ') + (slaNames.length > 3 ? '...' : '') + '</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--red)"><div class="kpi-label">At Risk</div><div class="kpi-value" style="color:var(--red)">' + atRiskJobs.length + '</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">No candidates past Team Fit</div></div>' +
+        '</div>';
+
+      var offerDecline = ANALYTICS.offer_decline_2026 || {accepted:0,declined:0,total:0,decline_rate:0};
+      html += '<div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">' +
+        '<div class="kpi-card"><div class="kpi-label">Weighted Pipeline</div><div class="kpi-value">' + kpis.weighted_pipeline + '</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--green)"><div class="kpi-label">2026 Filled</div><div class="kpi-value" style="color:var(--green)">' + totalFilled + '</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">Avg. ' + avgTTF + 'd TTF</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--green)"><div class="kpi-label">Within 60d SLA</div><div class="kpi-value" style="color:var(--green)">' + slaRate + '%</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + withinSLA + ' of ' + totalFilled + ' &middot; ' + overSLA + ' over</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--orange)"><div class="kpi-label">Offer Decline</div><div class="kpi-value" style="color:var(--orange)">' + offerDecline.decline_rate + '%</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + offerDecline.declined + ' of ' + offerDecline.total + ' offers</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--accent)"><div class="kpi-label">2026 Hired</div><div class="kpi-value">' + opened2026.length + '</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px"><span style="font-size:10px">2025 carry-over:</span> ' + opened2025.length + ' <span style="font-size:10px">(avg ' + avg2025 + 'd)</span></div></div>' +
+        '</div>';
+
+      html += '<div class="funnel-banner">' +
+        '<strong>Funnel Order (Technical is critical gate):</strong> ' +
+        'App <span class="funnel-arrow">&rarr;</span> ' +
+        'HM Review <span class="funnel-arrow">&rarr;</span> ' +
+        'TA Screening <span class="funnel-arrow">&rarr;</span> ' +
+        'Team Fit <span class="funnel-arrow">&rarr;</span> ' +
+        '<span class="gate">Technical Interview (82% drop)</span> <span class="funnel-arrow">&rarr;</span> ' +
+        'Culture Interview <span class="funnel-arrow">&rarr;</span> ' +
+        'Offer</div>';
+
+      for (var si = 0; si < SECTION_ORDER.length; si++) {
+        var sec = SECTION_ORDER[si];
+        var sJobs = groups[sec];
+        if (!sJobs || sJobs.length === 0) continue;
+        var barColor = sec === 'at_risk_section' ? 'var(--red)' : (sec === 'offer' || sec === 'likely_to_fill') ? 'var(--green)' : 'var(--accent)';
+        html += '<div class="section">' +
+          '<div class="section-header">' +
+          '<div class="section-bar" style="background:' + barColor + '"></div>' +
+          '<span class="section-title">' + SECTION_LABELS[sec] + '</span>' +
+          '<span class="section-count">(' + sJobs.length + ' role' + (sJobs.length > 1 ? 's' : '') + ')</span>' +
+          '</div>';
+
+        if (sec === 'empty') {
+          html += '<div class="empty-grid">';
+          for (var ei = 0; ei < sJobs.length; ei++) {
+            var ej = sJobs[ei];
+            html += '<div class="empty-card"><div>' +
+              '<div class="name">' + ej.name + '</div>' +
+              '<div class="meta">' + ej.dept + (ej.recruiter ? ' &middot; ' + ej.recruiter : '') + '</div>' +
+              '</div><div class="empty-dot"></div></div>';
+          }
+          html += '</div>';
+        } else {
+          html += '<table class="data-table"><thead><tr>' +
+            '<th>Role</th><th class="num">Pos.</th><th>Dept</th><th>Pipeline Age</th><th>Health</th>' +
+            '<th class="num">Early</th><th class="num">Screened</th>' +
+            '<th class="num">Pre-Gate</th><th class="num">Technical</th>' +
+            '<th class="num">Cultural</th><th class="num">Offer</th>' +
+            '<th class="num">Exp. Hires</th><th>Recruiter</th>' +
+            '</tr></thead><tbody>';
+
+          for (var ji = 0; ji < sJobs.length; ji++) {
+            var j = sJobs[ji];
+            var slaIcon = '';
+            if (j.sla_status === 'overdue') slaIcon = '<span class="sla-badge overdue">' + Math.abs(j.sla_remaining) + 'd over</span>';
+            else if (j.sla_status === 'warning') slaIcon = '<span class="sla-badge warning">' + j.sla_remaining + 'd left</span>';
+            else if (j.sla_status === 'filling') slaIcon = '<span class="sla-badge filling">Filling</span>';
+            var posCell = j.positions > 1 ? '<td class="num pos-multi">' + j.positions + '</td>' : '<td class="num">' + j.positions + '</td>';
+            html += '<tr>' +
+              '<td class="role-cell">' + j.name + '</td>' +
+              posCell +
+              '<td class="dept-cell">' + j.dept + '</td>' +
+              '<td class="age-cell">' + j.age_days + 'd ' + slaIcon + '</td>' +
+              '<td><span class="badge ' + j.health + '">' + (HEALTH_LABELS[j.health] || j.health) + '</span></td>' +
+              numCell(j.early) +
+              numCell(j.screened) +
+              numCell(j.pre_gate) +
+              numCell(j.technical, 'highlight-post') +
+              numCell(j.cultural, 'highlight-cultural') +
+              numCell(j.offer, 'highlight-offer') +
+              '<td class="hires-cell">' + j.exp_hires.toFixed(2) + '</td>' +
+              '<td class="recruiter-cell">' + (j.recruiter || '\u2014') + '</td>' +
+              '</tr>';
+          }
+          html += '</tbody></table>';
+        }
+        html += '</div>';
+      }
+
+      /* 2026 Hired table */
+      html += '<div class="section" style="margin-top:48px;border-top:2px solid var(--border);padding-top:32px">' +
+        '<div class="section-header">' +
+        '<div class="section-bar" style="background:var(--green)"></div>' +
+        '<span class="section-title">2026 Hired</span>' +
+        '<span class="section-count">(' + totalFilled + ' positions filled)</span>' +
+        '</div>';
+
+      var grouped = {};
+      for (var fi = 0; fi < FILLED.length; fi++) {
+        var f = FILLED[fi];
+        var key = f.job_name;
+        if (!grouped[key]) grouped[key] = { job_name: f.job_name, dept: f.dept, recruiter: f.recruiter, fills: [] };
+        grouped[key].fills.push(f.ttf_days);
+      }
+      var rows = Object.values(grouped).sort(function(a,b) {
+        var avgA = a.fills.reduce(function(s,v){return s+v},0)/a.fills.length;
+        var avgB = b.fills.reduce(function(s,v){return s+v},0)/b.fills.length;
+        return avgA - avgB;
+      });
+
+      html += '<table class="data-table"><thead><tr>' +
+        '<th>Role</th><th>Dept</th><th class="num">Filled</th>' +
+        '<th class="num">Avg. TTF (days)</th><th>SLA</th><th>Recruiter</th>' +
+        '</tr></thead><tbody>';
+
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri];
+        var count = row.fills.length;
+        var avg = Math.round(row.fills.reduce(function(s,v){return s+v},0)/count);
+        var slaCls = avg <= 60 ? 'badge on_track' : 'badge at_risk';
+        var slaLabel = avg <= 60 ? 'Within SLA' : 'Over SLA';
+        var ttfCls = avg <= 60 ? '' : 'style="color:var(--red);font-weight:700"';
+        var countCls = count > 1 ? ' class="num pos-multi"' : ' class="num"';
+        html += '<tr>' +
+          '<td class="role-cell">' + row.job_name + '</td>' +
+          '<td class="dept-cell">' + row.dept + '</td>' +
+          '<td' + countCls + '>' + count + '</td>' +
+          '<td class="num" ' + ttfCls + '>' + avg + '</td>' +
+          '<td><span class="' + slaCls + '">' + slaLabel + '</span></td>' +
+          '<td class="recruiter-cell">' + row.recruiter + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+      document.getElementById('tab-pipeline').innerHTML = html;
+    }
+
+    /* ================================================================
+       TAB: RECRUITER
+       ================================================================ */
+    function renderRecruiter() {
+      var rec = ANALYTICS.per_recruiter;
+      var names = Object.keys(rec).sort(function(a,b) {
+        return rec[b].open_roles - rec[a].open_roles || a.localeCompare(b);
+      });
+      var activeRecruiters = names.filter(function(n){ return rec[n].open_roles > 0 || rec[n].filled_2026 > 0; });
+      var cols = Math.min(activeRecruiters.length, 4);
+      var html = '<div class="kpi-row" style="grid-template-columns:repeat(' + cols + ',1fr);margin-bottom:24px">';
+      for (var i = 0; i < activeRecruiters.length; i++) {
+        var n = activeRecruiters[i];
+        var r = rec[n];
+        var firstName = n.split(' ')[0];
+        var borderColor = r.at_risk > 0 ? 'var(--red)' : r.sla_rate >= 50 ? 'var(--green)' : 'var(--accent)';
+        html += '<div class="kpi-card" style="border-left:4px solid ' + borderColor + '">' +
+          '<div class="kpi-label">' + escHtml(firstName) + '</div>' +
+          '<div class="kpi-value">' + r.open_roles + '<span style="font-size:16px;color:var(--text-dim)"> open</span></div>' +
+          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">' +
+          r.filled_2026 + ' filled' +
+          (r.avg_ttf > 0 ? ' &middot; ' + r.avg_ttf.toFixed(0) + 'd TTF' : '') +
+          (r.at_risk > 0 ? ' &middot; <span style="color:var(--red);font-weight:700">' + r.at_risk + ' at risk</span>' : '') +
+          '</div></div>';
+      }
+      html += '</div>';
+
+      var taScreens = ANALYTICS.recruiter_ta_screens || {};
+      html += '<div class="section"><div class="section-header">' +
+        '<div class="section-bar"></div>' +
+        '<span class="section-title">Recruiter Metrics</span>' +
+        '<span class="section-count">(2026 open roles only)</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Recruiter</th><th class="num">Open Roles</th><th class="num">Filled 2026</th>' +
+        '<th class="num">Avg TTF</th><th class="num">SLA Rate</th>' +
+        '<th class="num">At Risk</th><th class="num">TA Screens</th><th class="num">Roles Screened</th>' +
+        '</tr></thead><tbody>';
+
+      for (var ni = 0; ni < names.length; ni++) {
+        var name = names[ni];
+        var rd = rec[name];
+        if (rd.open_roles === 0 && rd.filled_2026 === 0) continue;
+        var atRiskRatio = rd.open_roles > 0 ? (rd.at_risk / rd.open_roles) : 0;
+        var flagged = (atRiskRatio > 0.3 && rd.at_risk > 0) || (rd.sla_rate > 0 && rd.sla_rate < 40);
+        var rowCls = flagged ? ' class="row-flagged"' : '';
+        var ts = taScreens[name] || {ta_screens:0, roles_screened:0};
+        html += '<tr' + rowCls + '>' +
+          '<td class="role-cell">' + escHtml(name) + '</td>' +
+          numCell(rd.open_roles) +
+          numCell(rd.filled_2026, rd.filled_2026 > 0 ? 'highlight-offer' : '') +
+          '<td class="num">' + (rd.avg_ttf > 0 ? rd.avg_ttf.toFixed(0) + 'd' : '\u2014') + '</td>' +
+          '<td class="num"' + (rd.sla_rate > 0 && rd.sla_rate < 40 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + (rd.sla_rate > 0 ? rd.sla_rate.toFixed(0) + '%' : '\u2014') + '</td>' +
+          '<td class="num"' + (rd.at_risk > 0 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + rd.at_risk + '</td>' +
+          numCell(ts.ta_screens, ts.ta_screens > 50 ? 'highlight-post' : '') +
+          numCell(ts.roles_screened) +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+      document.getElementById('tab-recruiter').innerHTML = html;
+    }
+
+    /* ================================================================
+       TAB: DEPARTMENT
+       ================================================================ */
+    function renderDepartment() {
+      var dept = ANALYTICS.per_department;
+      var names = Object.keys(dept).filter(function(n){ return n !== 'Unknown'; }).sort(function(a,b){
+        return dept[b].open_roles - dept[a].open_roles || a.localeCompare(b);
+      });
+
+      var html = '<div class="section"><div class="section-header">' +
+        '<div class="section-bar" style="background:var(--accent)"></div>' +
+        '<span class="section-title">Stage-to-Stage Conversion Ratios</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Department</th>' +
+        '<th class="num">Early &rarr; Screened</th>' +
+        '<th class="num">Screened &rarr; Team Fit</th>' +
+        '<th class="num">Team Fit &rarr; Technical</th>' +
+        '<th class="num">Technical &rarr; Cultural</th>' +
+        '<th class="num">Cultural &rarr; Offer</th>' +
+        '</tr></thead><tbody>';
+
+      for (var ci = 0; ci < names.length; ci++) {
+        var nm = names[ci];
+        var dd = dept[nm];
+        var p = dd.per_stage;
+        function convRate(from, to) {
+          if (from === 0) return '\u2014';
+          var pct = Math.round((to / from) * 100);
+          var cls = pct < 10 && from > 5 ? 'style="color:var(--red);font-weight:700"' : '';
+          return '<span ' + cls + '>' + pct + '%</span>';
+        }
+        html += '<tr>' +
+          '<td class="role-cell">' + escHtml(nm) + '</td>' +
+          '<td class="num">' + convRate(p.early, p.screened) + '</td>' +
+          '<td class="num">' + convRate(p.screened, p.team_fit) + '</td>' +
+          '<td class="num">' + convRate(p.team_fit, p.technical) + '</td>' +
+          '<td class="num">' + convRate(p.technical, p.cultural) + '</td>' +
+          '<td class="num">' + convRate(p.cultural, p.offer) + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
+        '<div class="section-bar"></div>' +
+        '<span class="section-title">Department Pipeline Overview</span>' +
+        '<span class="section-count">(' + names.length + ' departments)</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Department</th><th class="num">Open Roles</th><th class="num">Positions</th>' +
+        '<th class="num">Avg Age</th><th class="num">Candidates</th>' +
+        '<th class="num">Early</th><th class="num">Screened</th>' +
+        '<th class="num">Team Fit</th><th class="num">Technical</th>' +
+        '<th class="num">Cultural</th><th class="num">Offer</th>' +
+        '<th class="num">Filled 2026</th><th class="num">Avg TTF</th>' +
+        '</tr></thead><tbody>';
+
+      for (var di = 0; di < names.length; di++) {
+        var dname = names[di];
+        var d = dept[dname];
+        var ps = d.per_stage;
+        var postGate = ps.technical + ps.cultural + ps.offer;
+        var flagged = (postGate === 0 && d.open_roles > 0) || (d.avg_age > 120 && d.open_roles > 0);
+        var rowCls = flagged ? ' class="row-flagged"' : '';
+        html += '<tr' + rowCls + '>' +
+          '<td class="role-cell">' + escHtml(dname) + '</td>' +
+          numCell(d.open_roles) +
+          numCell(d.positions) +
+          '<td class="num"' + (d.avg_age > 120 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + (d.avg_age > 0 ? d.avg_age.toFixed(0) + 'd' : '\u2014') + '</td>' +
+          numCell(d.total_candidates) +
+          numCell(ps.early) +
+          numCell(ps.screened) +
+          numCell(ps.team_fit) +
+          numCell(ps.technical, 'highlight-post') +
+          numCell(ps.cultural, 'highlight-cultural') +
+          numCell(ps.offer, 'highlight-offer') +
+          numCell(d.filled_2026, d.filled_2026 > 0 ? 'highlight-offer' : '') +
+          '<td class="num">' + (d.avg_ttf > 0 ? d.avg_ttf.toFixed(0) + 'd' : '\u2014') + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      /* Department Passthrough Rates */
+      html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
+        '<div class="section-bar" style="background:var(--red)"></div>' +
+        '<span class="section-title">Department Passthrough Rates</span>' +
+        '<span class="section-count">(% of candidates advancing to next stage)</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Department</th>' +
+        '<th class="num">Early &rarr; Screened</th>' +
+        '<th class="num">Screened &rarr; Team Fit</th>' +
+        '<th class="num">Team Fit &rarr; Technical</th>' +
+        '<th class="num">Technical &rarr; Cultural</th>' +
+        '<th class="num">Team Fit &rarr; Cultural</th>' +
+        '<th class="num">Cultural &rarr; Offer</th>' +
+        '</tr></thead><tbody>';
+
+      for (var pi = 0; pi < names.length; pi++) {
+        var pn = names[pi];
+        var pd = dept[pn];
+        var pp = pd.per_stage;
+        function ptRate(from, to, threshold) {
+          if (from === 0) return '\u2014';
+          var pct = Math.round((to / from) * 100);
+          var bad = threshold && pct < threshold && from > 3;
+          return '<span' + (bad ? ' style="color:var(--red);font-weight:700"' : '') + '>' + pct + '%</span>';
+        }
+        var tfToCultural = (pp.team_fit > 0) ? Math.round((pp.cultural / pp.team_fit) * 100) : 0;
+        var tfToCulturalBad = pp.team_fit > 3 && tfToCultural < 15;
+        var techToCultural = (pp.technical > 0) ? Math.round((pp.cultural / pp.technical) * 100) : 0;
+        var techBad = pp.technical > 2 && techToCultural < 20;
+        var rowCls = techBad ? ' class="row-flagged"' : '';
+        html += '<tr' + rowCls + '>' +
+          '<td class="role-cell">' + escHtml(pn) + '</td>' +
+          '<td class="num">' + ptRate(pp.early, pp.screened) + '</td>' +
+          '<td class="num">' + ptRate(pp.screened, pp.team_fit) + '</td>' +
+          '<td class="num">' + ptRate(pp.team_fit, pp.technical) + '</td>' +
+          '<td class="num"><span' + (techBad ? ' style="color:var(--red);font-weight:700"' : '') + '>' + (pp.technical > 0 ? techToCultural + '%' : '\u2014') + '</span></td>' +
+          '<td class="num"><span' + (tfToCulturalBad ? ' style="color:var(--orange);font-weight:700"' : '') + '>' + (pp.team_fit > 0 ? tfToCultural + '%' : '\u2014') + '</span></td>' +
+          '<td class="num">' + ptRate(pp.cultural, pp.offer) + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      document.getElementById('tab-department').innerHTML = html;
+    }
+
+    /* ================================================================
+       TAB: HIRING PERFORMANCE
+       ================================================================ */
+    function renderPerformance() {
+      var pt = ANALYTICS.passthrough_rates;
+      var html = '<div class="passthrough-row">' +
+        '<div class="passthrough-card"><div class="passthrough-label">Screening &rarr; Team Fit</div><div class="passthrough-value">' + pt.screening_to_teamfit + '%</div></div>' +
+        '<div class="passthrough-card"><div class="passthrough-label">Team Fit &rarr; Technical</div><div class="passthrough-value">' + pt.teamfit_to_technical + '%</div></div>' +
+        '<div class="passthrough-card" style="border-left-color:var(--red)"><div class="passthrough-label">Technical &rarr; Cultural</div><div class="passthrough-value" style="color:var(--red)">' + pt.technical_to_cultural + '%</div></div>' +
+        '<div class="passthrough-card" style="border-left-color:var(--orange)"><div class="passthrough-label">Team Fit &rarr; Cultural</div><div class="passthrough-value" style="color:var(--orange)">' + (pt.teamfit_to_cultural || 0) + '%</div><div style="font-size:10px;color:var(--text-dim)">compound</div></div>' +
+        '<div class="passthrough-card"><div class="passthrough-label">Cultural &rarr; Offer</div><div class="passthrough-value">' + pt.cultural_to_offer + '%</div></div>' +
+        '</div>';
+
+      var roles = ANALYTICS.per_role_health.slice();
+      roles.sort(function(a,b) { if (a.healthy === b.healthy) return 0; return a.healthy ? 1 : -1; });
+      var unhealthyCount = roles.filter(function(r){ return !r.healthy; }).length;
+      var healthyCount = roles.length - unhealthyCount;
+
+      html += '<div class="section"><div class="section-header">' +
+        '<div class="section-bar" style="background:var(--red)"></div>' +
+        '<span class="section-title">Role Health Diagnosis</span>' +
+        '<span class="section-count">(' + unhealthyCount + ' issues, ' + healthyCount + ' healthy)</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Role</th><th>Department</th><th>Recruiter</th><th>Health</th><th>Issue Type</th><th>Reason</th>' +
+        '</tr></thead><tbody>';
+
+      for (var ri = 0; ri < roles.length; ri++) {
+        var r = roles[ri];
+        var healthBadge = r.healthy
+          ? '<span class="badge healthy">Healthy</span>'
+          : '<span class="badge unhealthy">Unhealthy</span>';
+        var issueBadge = '';
+        if (r.issue) issueBadge = '<span class="issue-badge ' + r.issue + '">' + r.issue + '</span>';
+        var rowCls = r.healthy ? '' : ' class="row-flagged"';
+        html += '<tr' + rowCls + '>' +
+          '<td class="role-cell">' + escHtml(r.name) + '</td>' +
+          '<td class="dept-cell">' + escHtml(r.dept) + '</td>' +
+          '<td class="recruiter-cell">' + escHtml(r.recruiter) + '</td>' +
+          '<td>' + healthBadge + '</td>' +
+          '<td>' + issueBadge + '</td>' +
+          '<td style="font-size:13px;color:var(--text-dim);max-width:340px">' + (r.reason ? escHtml(r.reason) : '\u2014') + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+      document.getElementById('tab-performance').innerHTML = html;
+    }
+
+    /* ================================================================
+       TAB: EFFECTIVENESS
+       ================================================================ */
+    function renderEffectiveness() {
+      function normalizeRejections(raw) {
+        var mapped = { 'TA Screening': 0, 'Team Fit': 0, 'Technical': 0, 'Cultural': 0, 'Offer': 0, 'Other': 0 };
+        for (var stage in raw) {
+          var count = raw[stage];
+          var s = stage.toLowerCase().trim();
+          if (s === 'ta screening' || s === 'ta first review' || s === 'hm screening' || s === 'hiring manager screening') mapped['TA Screening'] += count;
+          else if (s === 'team fit' || s === 'meeting joeri - team fit') mapped['Team Fit'] += count;
+          else if (s === 'technical' || s === 'technical case study & interview') mapped['Technical'] += count;
+          else if (s === 'cultural' || s === 'cultural interview' || s === 'automated reference with zinc') mapped['Cultural'] += count;
+          else if (s === 'offer') mapped['Offer'] += count;
+          else if (s !== 'application review' && s !== 'unknown') mapped['Other'] += count;
+        }
+        return mapped;
+      }
+
+      var datasets = [
+        { label: 'All Roles', raw: ANALYTICS.rejection_by_stage },
+        { label: 'Excl. Intern', raw: ANALYTICS.rejection_by_stage_excl_intern },
+        { label: 'Excl. Product & Tech', raw: ANALYTICS.rejection_by_stage_excl_product_tech }
+      ];
+
+      var html = '<div class="section"><div class="section-header">' +
+        '<div class="section-bar"></div>' +
+        '<span class="section-title">Rejection Analysis by Stage</span>' +
+        '<span class="section-count">(post-screening rejections only)</span>' +
+        '</div>' +
+        '<table class="data-table"><thead><tr>' +
+        '<th>Filter</th>' +
+        '<th class="num">TA Screening</th>' +
+        '<th class="num">Team Fit</th>' +
+        '<th class="num">Technical</th>' +
+        '<th class="num">Cultural</th>' +
+        '<th class="num">Offer</th>' +
+        '<th class="num">Total</th>' +
+        '</tr></thead><tbody>';
+
+      for (var di = 0; di < datasets.length; di++) {
+        var ds = datasets[di];
+        var m = normalizeRejections(ds.raw);
+        var total = m['TA Screening'] + m['Team Fit'] + m['Technical'] + m['Cultural'] + m['Offer'];
+        function rejCell(count, total) {
+          if (count === 0) return '<td class="num zero">0</td>';
+          var pct = total > 0 ? (count / total * 100).toFixed(1) : '0.0';
+          return '<td class="num"><strong>' + count + '</strong><br><span style="font-size:11px;color:var(--text-dim)">' + pct + '%</span></td>';
+        }
+        html += '<tr>' +
+          '<td class="role-cell">' + ds.label + '</td>' +
+          rejCell(m['TA Screening'], total) +
+          rejCell(m['Team Fit'], total) +
+          rejCell(m['Technical'], total) +
+          rejCell(m['Cultural'], total) +
+          rejCell(m['Offer'], total) +
+          '<td class="num" style="font-weight:700">' + total + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      html += '<div class="funnel-banner" style="margin-top:20px">' +
+        '<strong>Note:</strong> Application Review rejections excluded from above table. ' +
+        'All roles: ' + (ANALYTICS.rejection_by_stage['Application Review'] || 0).toLocaleString() + ' &middot; ' +
+        'Excl. Intern: ' + (ANALYTICS.rejection_by_stage_excl_intern['Application Review'] || 0).toLocaleString() + ' &middot; ' +
+        'Excl. Product & Tech: ' + (ANALYTICS.rejection_by_stage_excl_product_tech['Application Review'] || 0).toLocaleString() +
+        '</div>';
+
+      /* Per-role rejection breakdown */
+      var roleRej = ANALYTICS.per_role_rejections || [];
+      if (roleRej.length > 0) {
+        html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
+          '<div class="section-bar" style="background:var(--red)"></div>' +
+          '<span class="section-title">Per-Role Rejection Breakdown</span>' +
+          '<span class="section-count">(post-review rejections by stage per role)</span>' +
+          '</div>' +
+          '<table class="data-table"><thead><tr>' +
+          '<th>Role</th><th>Dept</th>' +
+          '<th class="num">TA Screen</th><th class="num">% of total</th>' +
+          '<th class="num">Team Fit</th><th class="num">% of total</th>' +
+          '<th class="num">Technical</th><th class="num">% of total</th>' +
+          '<th class="num">Cultural</th><th class="num">Offer</th>' +
+          '<th class="num">Total</th><th>Signal</th>' +
+          '</tr></thead><tbody>';
+
+        for (var rri = 0; rri < roleRej.length; rri++) {
+          var rr = roleRej[rri];
+          var taPct = rr.total > 0 ? Math.round(rr.ta_screening / rr.total * 100) : 0;
+          var tfPct = rr.total > 0 ? Math.round(rr.team_fit / rr.total * 100) : 0;
+          var techPct = rr.total > 0 ? Math.round(rr.technical / rr.total * 100) : 0;
+
+          var signal = '';
+          if (taPct > 80 && rr.ta_screening > 20) signal = '<span class="issue-badge quality">TA calibration</span>';
+          else if (tfPct > 30 && rr.team_fit > 5) signal = '<span class="issue-badge calibration">Team Fit gatekeeper</span>';
+          else if (techPct > 30 && rr.technical > 5) signal = '<span class="issue-badge risk">Tech drop-off</span>';
+          else if (rr.offer > 0) signal = '<span class="issue-badge sustainability">Offer decline</span>';
+
+          var rowCls = signal ? ' class="row-flagged"' : '';
+          html += '<tr' + rowCls + '>' +
+            '<td class="role-cell">' + escHtml(rr.name) + '</td>' +
+            '<td class="dept-cell">' + escHtml(rr.dept) + '</td>' +
+            numCell(rr.ta_screening) +
+            '<td class="num" style="font-size:11px;color:var(--text-dim)">' + taPct + '%</td>' +
+            numCell(rr.team_fit, tfPct > 30 && rr.team_fit > 5 ? 'highlight-cultural' : '') +
+            '<td class="num" style="font-size:11px;color:var(--text-dim)">' + tfPct + '%</td>' +
+            numCell(rr.technical, techPct > 30 && rr.technical > 5 ? 'highlight-post' : '') +
+            '<td class="num" style="font-size:11px;color:var(--text-dim)">' + techPct + '%</td>' +
+            numCell(rr.cultural) +
+            numCell(rr.offer) +
+            '<td class="num" style="font-weight:700">' + rr.total + '</td>' +
+            '<td>' + signal + '</td>' +
+            '</tr>';
+        }
+        html += '</tbody></table></div>';
+      }
+
+      /* Funnel Efficiency per role */
+      var funnel = ANALYTICS.funnel_efficiency || [];
+      if (funnel.length > 0) {
+        funnel.sort(function(a,b){ return b.screens_per_technical - a.screens_per_technical; });
+        html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
+          '<div class="section-bar" style="background:var(--orange)"></div>' +
+          '<span class="section-title">Funnel Efficiency per Role</span>' +
+          '<span class="section-count">(TA screens needed to advance candidates)</span>' +
+          '</div>' +
+          '<table class="data-table"><thead><tr>' +
+          '<th>Role</th><th>Dept</th>' +
+          '<th class="num">TA Screens</th>' +
+          '<th class="num">Entered Team Fit</th>' +
+          '<th class="num">Screens / Team Fit</th>' +
+          '<th class="num">Entered Technical</th>' +
+          '<th class="num">Screens / Technical</th>' +
+          '<th class="num">TF &rarr; Tech %</th>' +
+          '<th>Flags</th>' +
+          '</tr></thead><tbody>';
+
+        for (var fi = 0; fi < funnel.length; fi++) {
+          var fe = funnel[fi];
+          if (fe.ta_screens === 0) continue;
+          var flags = [];
+          if (fe.screens_per_teamfit > 5 && fe.ta_screens > 5) flags.push('<span class="issue-badge quality">TA &gt;5 per TF</span>');
+          if (fe.screens_per_technical > 10 && fe.ta_screens > 5) flags.push('<span class="issue-badge risk">TA &gt;10 per Tech</span>');
+          if (fe.tf_to_tech_pct < 30 && fe.team_fit_entered > 3) flags.push('<span class="issue-badge calibration">HM calibration</span>');
+          var rowCls = flags.length > 0 ? ' class="row-flagged"' : '';
+          var sptf = fe.screens_per_teamfit >= 999 ? '\u2014' : fe.screens_per_teamfit.toFixed(1);
+          var sptech = fe.screens_per_technical >= 999 ? '\u2014' : fe.screens_per_technical.toFixed(1);
+          html += '<tr' + rowCls + '>' +
+            '<td class="role-cell">' + escHtml(fe.name) + '</td>' +
+            '<td class="dept-cell">' + escHtml(fe.dept) + '</td>' +
+            numCell(fe.ta_screens) +
+            numCell(fe.team_fit_entered) +
+            '<td class="num"' + (fe.screens_per_teamfit > 5 && fe.ta_screens > 5 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + sptf + '</td>' +
+            numCell(fe.technical_entered, fe.technical_entered > 0 ? 'highlight-post' : '') +
+            '<td class="num"' + (fe.screens_per_technical > 10 && fe.ta_screens > 5 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + sptech + '</td>' +
+            '<td class="num"' + (fe.tf_to_tech_pct < 30 && fe.team_fit_entered > 3 ? ' style="color:var(--orange);font-weight:700"' : '') + '>' + (fe.team_fit_entered > 0 ? fe.tf_to_tech_pct + '%' : '\u2014') + '</td>' +
+            '<td>' + flags.join(' ') + '</td>' +
+            '</tr>';
+        }
+        html += '</tbody></table></div>';
+      }
+
+      document.getElementById('tab-effectiveness').innerHTML = html;
+    }
+
+    /* ================================================================
+       TAB: OVERVIEW
+       ================================================================ */
+    function renderOverview() {
+      var internJobs = jobs.filter(function(j){ return /intern/i.test(j.name); });
+      var fullTimeJobs = jobs.filter(function(j){ return !/intern/i.test(j.name); });
+      var totalOpenPositions = fullTimeJobs.reduce(function(s,j){return s+j.positions},0);
+      var atRiskJobs = jobs.filter(function(j){ return j.total > 0 && j.pre_gate < 3 && j.technical === 0 && j.cultural === 0 && j.offer === 0; });
+      var unhealthy = ANALYTICS.per_role_health.filter(function(r){ return !r.healthy; });
+      var pt = ANALYTICS.passthrough_rates;
+
+      var html = '<div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">' +
+        '<div class="kpi-card" style="border-left:4px solid var(--text)"><div class="kpi-label">Open Positions</div><div class="kpi-value">' + totalOpenPositions + '</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--green)"><div class="kpi-label">2026 Filled</div><div class="kpi-value" style="color:var(--green)">' + totalFilled + '</div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--accent)"><div class="kpi-label">Avg TTF</div><div class="kpi-value">' + avgTTF + '<span style="font-size:18px">d</span></div></div>' +
+        '<div class="kpi-card" style="border-left:4px solid var(--red)"><div class="kpi-label">At Risk / Unhealthy</div><div class="kpi-value" style="color:var(--red)">' + atRiskJobs.length + ' / ' + unhealthy.length + '</div></div>' +
+        '</div>';
+
+      html += '<div class="funnel-banner">' +
+        '<strong>Pipeline Passthrough Rates:</strong> ' +
+        'Screening &rarr; Team Fit: <strong>' + pt.screening_to_teamfit + '%</strong>' +
+        '<span class="funnel-arrow"> | </span>' +
+        'Team Fit &rarr; Technical: <strong>' + pt.teamfit_to_technical + '%</strong>' +
+        '<span class="funnel-arrow"> | </span>' +
+        'Technical &rarr; Cultural: <strong style="color:var(--red)">' + pt.technical_to_cultural + '%</strong>' +
+        '<span class="funnel-arrow"> | </span>' +
+        'Team Fit &rarr; Cultural: <strong style="color:var(--orange)">' + (pt.teamfit_to_cultural || 0) + '%</strong>' +
+        '<span class="funnel-arrow"> | </span>' +
+        'Cultural &rarr; Offer: <strong>' + pt.cultural_to_offer + '%</strong>' +
+        '</div>';
+
+      if (unhealthy.length > 0) {
+        html += '<div class="section"><div class="section-header">' +
+          '<div class="section-bar" style="background:var(--red)"></div>' +
+          '<span class="section-title">Roles Needing Attention</span>' +
+          '<span class="section-count">(' + unhealthy.length + ')</span>' +
+          '</div><div class="empty-grid">';
+        for (var ui = 0; ui < unhealthy.length; ui++) {
+          var u = unhealthy[ui];
+          html += '<div class="empty-card" style="border-left:3px solid var(--red)"><div>' +
+            '<div class="name">' + escHtml(u.name) + '</div>' +
+            '<div class="meta">' + escHtml(u.dept) + ' &middot; ' + escHtml(u.recruiter) +
+            ' &middot; <span class="issue-badge ' + u.issue + '">' + u.issue + '</span></div>' +
+            '</div></div>';
+        }
+        html += '</div></div>';
+      }
+
+      document.getElementById('tab-overview').innerHTML = html;
+    }
+
+    /* Render all tabs */
+    renderPipeline();
+    renderRecruiter();
+    renderDepartment();
+    renderPerformance();
+    renderEffectiveness();
+    renderOverview();
+  </script>
+</body>
+</html>
