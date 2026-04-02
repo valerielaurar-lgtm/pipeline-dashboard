@@ -599,25 +599,38 @@
         return rec[b].open_roles - rec[a].open_roles || a.localeCompare(b);
       });
       var activeRecruiters = names.filter(function(n){ return (rec[n].open_roles > 0 || rec[n].filled_2026 > 0) && EXCLUDE_TA.indexOf(n) === -1; });
-      var cols = Math.min(activeRecruiters.length, 4);
-      var html = '<div class="kpi-row" style="grid-template-columns:repeat(' + cols + ',1fr);margin-bottom:24px">';
-      for (var i = 0; i < activeRecruiters.length; i++) {
-        var n = activeRecruiters[i];
-        var r = rec[n];
-        var firstName = n.split(' ')[0];
-        var borderColor = r.at_risk > 0 ? 'var(--red)' : r.sla_rate >= 50 ? 'var(--green)' : 'var(--accent)';
-        html += '<div class="kpi-card" style="border-left:4px solid ' + borderColor + '">' +
-          '<div class="kpi-label">' + escHtml(firstName) + '</div>' +
-          '<div class="kpi-value">' + r.open_roles + '<span style="font-size:16px;color:var(--text-dim)"> open</span></div>' +
-          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">' +
-          r.filled_2026 + ' filled' +
-          (r.avg_ttf > 0 ? ' &middot; ' + r.avg_ttf.toFixed(0) + 'd TTF' : '') +
-          (r.at_risk > 0 ? ' &middot; <span style="color:var(--red);font-weight:700">' + r.at_risk + ' at risk</span>' : '') +
+
+      /* Pipeline per TA summary cards */
+      var taWhitelist = ['Valerie Rouan','Farshad Aslani','Laine Anderson','Kylie Hoffman'];
+      var taScreens = ANALYTICS.recruiter_ta_screens || {};
+      var mgrDelays = ANALYTICS.manager_delays || {};
+      var html = '<div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">';
+      for (var twi = 0; twi < taWhitelist.length; twi++) {
+        var twName = taWhitelist[twi];
+        var twRec = rec[twName] || {};
+        var twFirst = twName.split(' ')[0];
+        // compute pipeline stats from jobs data
+        var twJobs = jobs.filter(function(j){ return j.recruiter === twName; });
+        var twOpenRoles = twJobs.length;
+        var twTotalCands = twJobs.reduce(function(s,j){ return s + j.total; }, 0);
+        var twTechPlus = twJobs.reduce(function(s,j){ return s + j.technical + j.cultural + j.offer; }, 0);
+        var twAtRisk = twJobs.filter(function(j){ return j.total > 0 && j.pre_gate < 3 && j.technical === 0 && j.cultural === 0 && j.offer === 0; }).length;
+        var twAtRiskPct = twOpenRoles > 0 ? Math.round((twAtRisk / twOpenRoles) * 100) : 0;
+        var twAvgAge = twOpenRoles > 0 ? Math.round(twJobs.reduce(function(s,j){ return s + j.age_days; }, 0) / twOpenRoles) : 0;
+        var twBorder = twAtRisk > 1 ? 'var(--red)' : twAtRiskPct > 30 ? 'var(--orange)' : 'var(--green)';
+        html += '<div class="kpi-card" style="border-left:4px solid ' + twBorder + ';padding:16px 20px">' +
+          '<div class="kpi-label">' + escHtml(twFirst) + '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:6px;font-size:13px">' +
+          '<div><span style="color:var(--text-dim)">Open Roles</span><br><strong>' + twOpenRoles + '</strong></div>' +
+          '<div><span style="color:var(--text-dim)">Pipeline</span><br><strong>' + twTotalCands + '</strong></div>' +
+          '<div><span style="color:var(--text-dim)">Technical+</span><br><strong style="color:var(--accent)">' + twTechPlus + '</strong></div>' +
+          '<div><span style="color:var(--text-dim)">At Risk</span><br><strong style="color:' + (twAtRisk > 0 ? 'var(--red)' : 'var(--green)') + '">' + twAtRiskPct + '%</strong> <span style="font-size:11px;color:var(--text-dim)">(' + twAtRisk + ')</span></div>' +
+          '<div><span style="color:var(--text-dim)">Avg Age</span><br><strong>' + twAvgAge + 'd</strong></div>' +
+          '<div><span style="color:var(--text-dim)">Filled 2026</span><br><strong style="color:var(--green)">' + (twRec.filled_2026 || 0) + '</strong></div>' +
           '</div></div>';
       }
       html += '</div>';
 
-      var taScreens = ANALYTICS.recruiter_ta_screens || {};
       html += '<div class="section"><div class="section-header">' +
         '<div class="section-bar"></div>' +
         '<span class="section-title">Recruiter Metrics</span>' +
@@ -652,10 +665,17 @@
       html += '</tbody></table></div>';
       /* TA Performance Analysis */
       var taEff = ANALYTICS.per_ta_efficiency || {};
-      var taWhitelist = ['Valerie Rouan','Farshad Aslani','Laine Anderson','Kylie Hoffman'];
+      var taWhitelistPA = ['Valerie Rouan','Farshad Aslani','Laine Anderson','Kylie Hoffman'];
+      // Pre-compute average manager delay count across all whitelisted TAs
+      var totalMgrDelays = 0; var taMgrDelayCount = 0;
+      for (var mdi = 0; mdi < taWhitelistPA.length; mdi++) {
+        var mdEff = taEff[taWhitelistPA[mdi]];
+        if (mdEff) { totalMgrDelays += mdEff.manager_delay_count; taMgrDelayCount++; }
+      }
+      var avgMgrDelay = taMgrDelayCount > 0 ? totalMgrDelays / taMgrDelayCount : 0;
       var analysisHtml = '';
-      for (var ai = 0; ai < taWhitelist.length; ai++) {
-        var taName = taWhitelist[ai];
+      for (var ai = 0; ai < taWhitelistPA.length; ai++) {
+        var taName = taWhitelistPA[ai];
         var td = taEff[taName];
         var rd = rec[taName] || {};
         var ts = taScreens[taName] || {ta_screens:0, roles_screened:0};
@@ -664,20 +684,53 @@
         var strengths = [];
         var improvements = [];
 
+        // Screens-to-hire ratio
+        var screensToHire = (rd.filled_2026 > 0 && ts.ta_screens > 0) ? (ts.ta_screens / rd.filled_2026).toFixed(1) : null;
+        if (screensToHire !== null) {
+          if (parseFloat(screensToHire) <= 20) strengths.push('Screens-to-hire ratio: ' + screensToHire + ':1 (efficient)');
+          else improvements.push('Screens-to-hire ratio: ' + screensToHire + ':1 — high screening effort per hire');
+        } else if (rd.filled_2026 === 0 && ts.ta_screens > 0) {
+          improvements.push('No hires closed yet despite ' + ts.ta_screens + ' screens');
+        }
+
         // Analyze
         if (rd.filled_2026 > 5) strengths.push('Strong output: ' + rd.filled_2026 + ' hires in 2026');
         else if (rd.filled_2026 > 0) strengths.push(rd.filled_2026 + ' hires in 2026');
-        else improvements.push('No hires closed in 2026 yet');
+        else if (ts.ta_screens === 0) improvements.push('No hires closed in 2026 yet');
 
         if (rd.sla_rate >= 60) strengths.push('Good SLA adherence: ' + rd.sla_rate.toFixed(0) + '%');
-        else if (rd.sla_rate > 0 && rd.sla_rate < 50) improvements.push('SLA rate below 50% (' + rd.sla_rate.toFixed(0) + '%) — focus on faster fills');
+        else if (rd.sla_rate > 0 && rd.sla_rate < 50) improvements.push('SLA rate below 50% (' + rd.sla_rate.toFixed(0) + '%) \u2014 focus on faster fills');
 
-        if (rd.at_risk > 2) improvements.push(rd.at_risk + ' roles at risk — need pipeline acceleration');
-        else if (rd.at_risk === 0 && rd.open_roles > 0) strengths.push('No at-risk roles');
+        // Specific at-risk roles
+        var taAtRiskRoles = jobs.filter(function(j){ return j.recruiter === taName && j.total > 0 && j.pre_gate < 3 && j.technical === 0 && j.cultural === 0 && j.offer === 0; });
+        if (taAtRiskRoles.length > 0) {
+          var riskNames = taAtRiskRoles.map(function(j){
+            var overSla = j.sla_remaining < 0 ? ' (' + Math.abs(j.sla_remaining) + 'd over SLA)' : '';
+            return escHtml(j.name) + overSla;
+          }).join(', ');
+          improvements.push(taAtRiskRoles.length + ' roles at risk: ' + riskNames);
+        } else if (rd.open_roles > 0) {
+          strengths.push('No at-risk roles');
+        }
+
+        // Specific SLA-overdue roles
+        var taOverdueRoles = jobs.filter(function(j){ return j.recruiter === taName && j.sla_status === 'overdue'; });
+        if (taOverdueRoles.length > 0) {
+          var overdueNames = taOverdueRoles.map(function(j){
+            return escHtml(j.name) + ' (' + Math.abs(j.sla_remaining) + 'd over)';
+          }).join(', ');
+          improvements.push('SLA overdue: ' + overdueNames);
+        }
 
         if (ts.ta_screens > 100 && ts.roles_screened > 5) strengths.push('High screening volume: ' + ts.ta_screens + ' across ' + ts.roles_screened + ' roles');
 
-        if (td && td.manager_delay_count > 10) improvements.push('Manager delays on ' + td.manager_delay_count + ' candidates — escalate with HMs');
+        // Manager delay flagging with peer comparison
+        if (td && td.manager_delay_count > 10) {
+          var mgrMsg = 'Manager delays on ' + td.manager_delay_count + ' candidates';
+          if (td.manager_delay_count > avgMgrDelay * 1.5) mgrMsg += ' (disproportionately high vs. peer avg ' + Math.round(avgMgrDelay) + ')';
+          mgrMsg += ' \u2014 escalate with HMs';
+          improvements.push(mgrMsg);
+        }
 
         // Monthly trend
         if (td && td.monthly && td.monthly.length >= 2) {
@@ -687,13 +740,15 @@
           for (var tdi = 0; tdi < td.monthly.length; tdi++) {
             if (td.monthly[tdi].flags.indexOf('calibration') !== -1) calibCount++;
           }
-          if (calibCount >= 2) improvements.push('Recurring calibration issues (' + calibCount + ' months) — align with HMs on candidate profiles');
+          if (calibCount >= 2) improvements.push('Recurring calibration issues (' + calibCount + ' months) \u2014 align with HMs on candidate profiles');
           if (last.total < prev.total) strengths.push('Rejection volume decreasing (efficiency improving)');
         }
 
         var borderCol = improvements.length > strengths.length ? 'var(--orange)' : 'var(--green)';
         analysisHtml += '<div style="margin-bottom:16px;padding:16px 20px;background:var(--white);border:1px solid var(--border);border-left:4px solid ' + borderCol + ';border-radius:10px">' +
-          '<div style="font-weight:700;font-size:15px;margin-bottom:8px">' + escHtml(taName) + '</div>';
+          '<div style="font-weight:700;font-size:15px;margin-bottom:8px">' + escHtml(taName) +
+          (screensToHire !== null ? '<span style="font-size:12px;font-weight:500;color:var(--text-dim);margin-left:12px">Screens/Hire: ' + screensToHire + ':1</span>' : '') +
+          '</div>';
         if (strengths.length > 0) {
           analysisHtml += '<div style="margin-bottom:6px"><span style="color:var(--green);font-weight:700;font-size:12px">STRENGTHS</span>';
           for (var si = 0; si < strengths.length; si++) {
@@ -723,8 +778,54 @@
       var names = Object.keys(dept).filter(function(n){ return n !== 'Unknown'; }).sort(function(a,b){
         return dept[b].open_roles - dept[a].open_roles || a.localeCompare(b);
       });
+      var mgrDelaysDept = ANALYTICS.manager_delays || {};
 
-      var html = '<div class="section"><div class="section-header">' +
+      /* Department Health Scorecard */
+      var scorecardHtml = '<div class="kpi-row" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin-bottom:28px">';
+      for (var sci = 0; sci < names.length; sci++) {
+        var scName = names[sci];
+        var scD = dept[scName];
+        if (scD.open_roles === 0) continue;
+        var scP = scD.per_stage;
+        var postGate = scP.technical + scP.cultural + scP.offer;
+        // Scoring: age, at-risk %, conversion, manager delays
+        var agePenalty = scD.avg_age > 120 ? 2 : scD.avg_age > 60 ? 1 : 0;
+        // at risk: roles with no one past team fit
+        var deptJobs = jobs.filter(function(j){ return j.dept === scName; });
+        var deptAtRisk = deptJobs.filter(function(j){ return j.total > 0 && j.pre_gate < 3 && j.technical === 0 && j.cultural === 0 && j.offer === 0; });
+        var riskPct = deptJobs.length > 0 ? deptAtRisk.length / deptJobs.length : 0;
+        var riskPenalty = riskPct > 0.5 ? 2 : riskPct > 0.2 ? 1 : 0;
+        var convTotal = scP.early > 0 ? (scP.technical + scP.cultural + scP.offer) / scP.early : 0;
+        var convPenalty = convTotal < 0.02 && scP.early > 10 ? 2 : convTotal < 0.05 && scP.early > 10 ? 1 : 0;
+        // manager delay penalty for this dept
+        var deptDelayCount = 0;
+        for (var mdk in mgrDelaysDept) {
+          if (mgrDelaysDept[mdk].dept && mgrDelaysDept[mdk].dept.trim() === scName) deptDelayCount += mgrDelaysDept[mdk].hireflix_severe + mgrDelaysDept[mdk].tech_severe;
+        }
+        var delayPenalty = deptDelayCount > 3 ? 2 : deptDelayCount > 0 ? 1 : 0;
+        var totalScore = agePenalty + riskPenalty + convPenalty + delayPenalty;
+        var healthLabel, healthCls;
+        if (totalScore >= 4) { healthLabel = 'Critical'; healthCls = 'unhealthy'; }
+        else if (totalScore >= 2) { healthLabel = 'Warning'; healthCls = 'at_risk'; }
+        else { healthLabel = 'Healthy'; healthCls = 'healthy'; }
+        // Primary bottleneck
+        var bottleneck = '\u2014';
+        if (agePenalty >= riskPenalty && agePenalty >= convPenalty && agePenalty >= delayPenalty && agePenalty > 0) bottleneck = 'High pipeline age (' + scD.avg_age.toFixed(0) + 'd)';
+        else if (riskPenalty >= convPenalty && riskPenalty >= delayPenalty && riskPenalty > 0) bottleneck = deptAtRisk.length + ' of ' + deptJobs.length + ' roles at risk';
+        else if (delayPenalty >= convPenalty && delayPenalty > 0) bottleneck = deptDelayCount + ' severe manager delays';
+        else if (convPenalty > 0) bottleneck = 'Low conversion to technical+';
+        scorecardHtml += '<div class="kpi-card" style="padding:14px 18px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<span style="font-weight:700;font-size:14px">' + escHtml(scName) + '</span>' +
+          '<span class="badge ' + healthCls + '">' + healthLabel + '</span></div>' +
+          '<div style="font-size:12px;color:var(--text-dim)">' + scD.open_roles + ' roles &middot; ' + scD.total_candidates + ' candidates &middot; ' + (scD.filled_2026 || 0) + ' filled</div>' +
+          (bottleneck !== '\u2014' ? '<div style="font-size:11px;margin-top:4px;color:' + (totalScore >= 4 ? 'var(--red)' : 'var(--orange)') + ';font-weight:600">Bottleneck: ' + bottleneck + '</div>' : '') +
+          '</div>';
+      }
+      scorecardHtml += '</div>';
+      var html = scorecardHtml;
+
+      html += '<div class="section"><div class="section-header">' +
         '<div class="section-bar" style="background:var(--accent)"></div>' +
         '<span class="section-title">Stage-to-Stage Conversion Ratios</span>' +
         '</div>' +
@@ -735,6 +836,7 @@
         '<th class="num">Team Fit &rarr; Technical</th>' +
         '<th class="num">Technical &rarr; Cultural</th>' +
         '<th class="num">Cultural &rarr; Offer</th>' +
+        '<th>Bottleneck Stage</th>' +
         '</tr></thead><tbody>';
 
       for (var ci = 0; ci < names.length; ci++) {
@@ -747,6 +849,22 @@
           var cls = pct < 10 && from > 5 ? 'style="color:var(--red);font-weight:700"' : '';
           return '<span ' + cls + '>' + pct + '%</span>';
         }
+        // Determine bottleneck stage (worst drop-off)
+        var stages = [
+          {name:'Early\u2192Screened', from:p.early, to:p.screened},
+          {name:'Screened\u2192Team Fit', from:p.screened, to:p.team_fit},
+          {name:'Team Fit\u2192Technical', from:p.team_fit, to:p.technical},
+          {name:'Technical\u2192Cultural', from:p.technical, to:p.cultural},
+          {name:'Cultural\u2192Offer', from:p.cultural, to:p.offer}
+        ];
+        var worstDrop = null; var worstPct = 999;
+        for (var bsi = 0; bsi < stages.length; bsi++) {
+          var st = stages[bsi];
+          if (st.from > 2) {
+            var bPct = Math.round((st.to / st.from) * 100);
+            if (bPct < worstPct) { worstPct = bPct; worstDrop = st.name + ' (' + bPct + '%)'; }
+          }
+        }
         html += '<tr>' +
           '<td class="role-cell">' + escHtml(nm) + '</td>' +
           '<td class="num">' + convRate(p.early, p.screened) + '</td>' +
@@ -754,6 +872,7 @@
           '<td class="num">' + convRate(p.team_fit, p.technical) + '</td>' +
           '<td class="num">' + convRate(p.technical, p.cultural) + '</td>' +
           '<td class="num">' + convRate(p.cultural, p.offer) + '</td>' +
+          '<td style="font-size:12px;color:var(--red);font-weight:600">' + (worstDrop || '\u2014') + '</td>' +
           '</tr>';
       }
       html += '</tbody></table></div>';
@@ -798,10 +917,33 @@
       html += '</tbody></table></div>';
 
       /* Department Passthrough Rates */
+      // Pre-compute worst (lowest %) department per stage (only where from > 2)
+      var ptStageNames = ['earlyToScreened','screenedToTF','tfToTech','techToCultural','tfToCultural','culturalToOffer'];
+      var worstPerStage = {};
+      for (var wsi = 0; wsi < ptStageNames.length; wsi++) worstPerStage[ptStageNames[wsi]] = {dept:null, pct:999};
+      for (var wpi = 0; wpi < names.length; wpi++) {
+        var wpN = names[wpi]; var wpP = dept[wpN].per_stage;
+        var ptChecks = [
+          {key:'earlyToScreened', from:wpP.early, to:wpP.screened},
+          {key:'screenedToTF', from:wpP.screened, to:wpP.team_fit},
+          {key:'tfToTech', from:wpP.team_fit, to:wpP.technical},
+          {key:'techToCultural', from:wpP.technical, to:wpP.cultural},
+          {key:'tfToCultural', from:wpP.team_fit, to:wpP.cultural},
+          {key:'culturalToOffer', from:wpP.cultural, to:wpP.offer}
+        ];
+        for (var wci = 0; wci < ptChecks.length; wci++) {
+          var wc = ptChecks[wci];
+          if (wc.from > 2) {
+            var wcPct = Math.round((wc.to / wc.from) * 100);
+            if (wcPct < worstPerStage[wc.key].pct) { worstPerStage[wc.key] = {dept:wpN, pct:wcPct}; }
+          }
+        }
+      }
+
       html += '<div class="section" style="margin-top:32px"><div class="section-header">' +
         '<div class="section-bar" style="background:var(--red)"></div>' +
         '<span class="section-title">Department Passthrough Rates</span>' +
-        '<span class="section-count">(% of candidates advancing to next stage)</span>' +
+        '<span class="section-count">(% of candidates advancing to next stage \u2014 worst per stage in red)</span>' +
         '</div>' +
         '<table class="data-table"><thead><tr>' +
         '<th>Department</th>' +
@@ -823,19 +965,26 @@
           var bad = threshold && pct < threshold && from > 3;
           return '<span' + (bad ? ' style="color:var(--red);font-weight:700"' : '') + '>' + pct + '%</span>';
         }
+        function ptRateWorst(from, to, stageKey) {
+          if (from === 0) return '\u2014';
+          var pct = Math.round((to / from) * 100);
+          var isWorst = worstPerStage[stageKey] && worstPerStage[stageKey].dept === pn && from > 2;
+          return '<span' + (isWorst ? ' style="color:var(--red);font-weight:700;text-decoration:underline"' : '') + '>' + pct + '%</span>';
+        }
         var tfToCultural = (pp.team_fit > 0) ? Math.round((pp.cultural / pp.team_fit) * 100) : 0;
-        var tfToCulturalBad = pp.team_fit > 3 && tfToCultural < 15;
         var techToCultural = (pp.technical > 0) ? Math.round((pp.cultural / pp.technical) * 100) : 0;
         var techBad = pp.technical > 2 && techToCultural < 20;
         var rowCls = techBad ? ' class="row-flagged"' : '';
+        var isWorstTech = worstPerStage['techToCultural'].dept === pn && pp.technical > 2;
+        var isWorstTF = worstPerStage['tfToCultural'].dept === pn && pp.team_fit > 2;
         html += '<tr' + rowCls + '>' +
           '<td class="role-cell">' + escHtml(pn) + '</td>' +
-          '<td class="num">' + ptRate(pp.early, pp.screened) + '</td>' +
-          '<td class="num">' + ptRate(pp.screened, pp.team_fit) + '</td>' +
-          '<td class="num">' + ptRate(pp.team_fit, pp.technical) + '</td>' +
-          '<td class="num"><span' + (techBad ? ' style="color:var(--red);font-weight:700"' : '') + '>' + (pp.technical > 0 ? techToCultural + '%' : '\u2014') + '</span></td>' +
-          '<td class="num"><span' + (tfToCulturalBad ? ' style="color:var(--orange);font-weight:700"' : '') + '>' + (pp.team_fit > 0 ? tfToCultural + '%' : '\u2014') + '</span></td>' +
-          '<td class="num">' + ptRate(pp.cultural, pp.offer) + '</td>' +
+          '<td class="num">' + ptRateWorst(pp.early, pp.screened, 'earlyToScreened') + '</td>' +
+          '<td class="num">' + ptRateWorst(pp.screened, pp.team_fit, 'screenedToTF') + '</td>' +
+          '<td class="num">' + ptRateWorst(pp.team_fit, pp.technical, 'tfToTech') + '</td>' +
+          '<td class="num"><span' + (isWorstTech ? ' style="color:var(--red);font-weight:700;text-decoration:underline"' : (techBad ? ' style="color:var(--red);font-weight:700"' : '')) + '>' + (pp.technical > 0 ? techToCultural + '%' : '\u2014') + '</span></td>' +
+          '<td class="num"><span' + (isWorstTF ? ' style="color:var(--red);font-weight:700;text-decoration:underline"' : (pp.team_fit > 3 && tfToCultural < 15 ? ' style="color:var(--orange);font-weight:700"' : '')) + '>' + (pp.team_fit > 0 ? tfToCultural + '%' : '\u2014') + '</span></td>' +
+          '<td class="num">' + ptRateWorst(pp.cultural, pp.offer, 'culturalToOffer') + '</td>' +
           '</tr>';
       }
       html += '</tbody></table></div>';
@@ -910,7 +1059,61 @@
        ================================================================ */
     function renderPerformance() {
       var pt = ANALYTICS.passthrough_rates;
-      var html = '<div class="passthrough-row">' +
+
+      /* Top 5 Risks: roles most likely to fail SLA */
+      var riskCandidates = [];
+      var perfMgrDelays = ANALYTICS.manager_delays || {};
+      var perfRoleHealth = ANALYTICS.per_role_health || [];
+      for (var rci = 0; rci < jobs.length; rci++) {
+        var rj = jobs[rci];
+        var riskScore = 0;
+        var reasons = [];
+        // Thin pipeline
+        if (rj.total > 0 && rj.technical === 0 && rj.cultural === 0 && rj.offer === 0) {
+          riskScore += 3;
+          if (rj.pre_gate < 3) reasons.push('Thin pipeline: ' + rj.pre_gate + ' at Team Fit, none past');
+          else reasons.push('No candidates past Team Fit');
+        }
+        // SLA overdue
+        if (rj.sla_status === 'overdue') { riskScore += 4; reasons.push(Math.abs(rj.sla_remaining) + 'd over SLA'); }
+        else if (rj.sla_status === 'warning') { riskScore += 2; reasons.push('Only ' + rj.sla_remaining + 'd until SLA'); }
+        // Manager delays
+        var rjDelay = perfMgrDelays[rj.name];
+        if (rjDelay && (rjDelay.hireflix_severe > 0 || rjDelay.tech_severe > 0)) {
+          riskScore += 2;
+          if (rjDelay.hireflix_severe > 0) reasons.push('HM Hireflix delay (max ' + rjDelay.max_hireflix + 'd)');
+          if (rjDelay.tech_severe > 0) reasons.push('Tech scheduling delay (max ' + rjDelay.max_tech + 'd)');
+        }
+        // Health issues from analytics
+        var roleH = perfRoleHealth.filter(function(rh){ return rh.name === rj.name; })[0];
+        if (roleH && !roleH.healthy) {
+          riskScore += 1;
+          if (roleH.issue === 'calibration') reasons.push('Calibration issue');
+          else if (roleH.issue === 'stakeholder') reasons.push('HM bottleneck');
+        }
+        // High age
+        if (rj.age_days > 90) { riskScore += 1; reasons.push('Pipeline age: ' + rj.age_days + 'd'); }
+        if (riskScore > 0) riskCandidates.push({name:rj.name, dept:rj.dept, recruiter:rj.recruiter||'\u2014', score:riskScore, reasons:reasons});
+      }
+      riskCandidates.sort(function(a,b){ return b.score - a.score; });
+      var top5 = riskCandidates.slice(0, 5);
+
+      var riskHtml = '<div class="kpi-row" style="grid-template-columns:1fr;margin-bottom:24px">';
+      for (var t5i = 0; t5i < top5.length; t5i++) {
+        var t5 = top5[t5i];
+        var riskColor = t5.score >= 5 ? 'var(--red)' : t5.score >= 3 ? 'var(--orange)' : 'var(--text-dim)';
+        riskHtml += '<div class="kpi-card" style="border-left:4px solid ' + riskColor + ';padding:12px 18px;display:flex;align-items:center;gap:16px">' +
+          '<div style="min-width:24px;text-align:center;font-size:18px;font-weight:700;color:' + riskColor + '">' + (t5i + 1) + '</div>' +
+          '<div style="flex:1">' +
+          '<div style="font-weight:700;font-size:14px">' + escHtml(t5.name) + ' <span style="font-size:12px;color:var(--text-dim);font-weight:500">' + escHtml(t5.dept) + ' \u00b7 ' + escHtml(t5.recruiter) + '</span></div>' +
+          '<div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + t5.reasons.join(' \u00b7 ') + '</div>' +
+          '</div></div>';
+      }
+      riskHtml += '</div>';
+
+      var html = collapsibleSection('Top 5 Risks', '(roles most likely to fail SLA)', 'var(--red)', riskHtml);
+
+      html += '<div class="passthrough-row">' +
         '<div class="passthrough-card"><div class="passthrough-label">Screening &rarr; Team Fit</div><div class="passthrough-value">' + pt.screening_to_teamfit + '%</div></div>' +
         '<div class="passthrough-card"><div class="passthrough-label">Team Fit &rarr; Technical</div><div class="passthrough-value">' + pt.teamfit_to_technical + '%</div></div>' +
         '<div class="passthrough-card" style="border-left-color:var(--red)"><div class="passthrough-label">Technical &rarr; Cultural</div><div class="passthrough-value" style="color:var(--red)">' + pt.technical_to_cultural + '%</div></div>' +
@@ -967,6 +1170,7 @@
           '<th class="num">Technical</th>' +
           '<th class="num">Overdue App</th>' +
           '<th class="num">Overdue Screen</th>' +
+          '<th>Bottleneck</th>' +
           '</tr></thead><tbody>';
 
         for (var ti = 0; ti < roleTiming.length; ti++) {
@@ -974,9 +1178,22 @@
           var hasOverdue = rt.overdue_application > 0 || rt.overdue_screening > 0;
           var rowCls = hasOverdue ? ' class="row-flagged"' : '';
           function daysCell(avg, count, threshold) {
-            if (count === 0) return '<td class="num zero">—</td>';
+            if (count === 0) return '<td class="num zero">\u2014</td>';
             var bad = avg > threshold;
             return '<td class="num"' + (bad ? ' style="color:var(--red);font-weight:700"' : '') + '>' + avg + 'd <span style="font-size:10px;color:var(--text-dim)">(' + count + ')</span></td>';
+          }
+          // Determine bottleneck
+          var bneck = '';
+          if (rt.avg_hireflix > 10 && rt.count_hireflix > 0) bneck = 'HM slow on Hireflix (' + rt.avg_hireflix + 'd)';
+          else if (rt.avg_screening > 15 && rt.count_screening > 2) bneck = 'Screening backlog (' + rt.avg_screening + 'd)';
+          else if (rt.avg_technical > 12 && rt.count_technical > 0) bneck = 'Technical delay (' + rt.avg_technical + 'd)';
+          else if (rt.avg_team_fit > 8 && rt.count_team_fit > 0) bneck = 'Team Fit slow (' + rt.avg_team_fit + 'd)';
+          else if (rt.overdue_screening > 5) bneck = rt.overdue_screening + ' stuck in screening';
+          else if (rt.overdue_application > 20) bneck = rt.overdue_application + ' unreviewed apps';
+          // Check from jobs data if no candidates past screening
+          var bnJob = jobs.filter(function(j){ return j.name === rt.name; })[0];
+          if (!bneck && bnJob && bnJob.technical === 0 && bnJob.cultural === 0 && bnJob.offer === 0 && bnJob.pre_gate > 0) {
+            bneck = 'No candidates past Team Fit';
           }
           html += '<tr' + rowCls + '>' +
             '<td class="role-cell">' + escHtml(rt.name) + '</td>' +
@@ -987,6 +1204,7 @@
             daysCell(rt.avg_technical, rt.count_technical, 10) +
             '<td class="num"' + (rt.overdue_application > 0 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + rt.overdue_application + '</td>' +
             '<td class="num"' + (rt.overdue_screening > 0 ? ' style="color:var(--red);font-weight:700"' : '') + '>' + rt.overdue_screening + '</td>' +
+            '<td style="font-size:12px;color:' + (bneck ? 'var(--red)' : 'var(--green)') + ';font-weight:600">' + (bneck || 'OK') + '</td>' +
             '</tr>';
         }
         html += '</tbody></table></div>';
@@ -1042,6 +1260,29 @@
           var totalTAScreens = Object.values(monthlyScreensByTA[taName] || {}).reduce(function(s,v){return s+v},0);
           html += '<td class="num highlight-offer">' + totalTAFills + '</td><td class="num highlight-post">' + totalTAScreens + '</td>';
         }
+        html += '</tr>';
+
+        /* Screens-to-Hire Ratio row */
+        var totalScreensAll2026 = 0;
+        for (var sr2i = 0; sr2i < activeTAs.length; sr2i++) {
+          var sr2ta = activeTAs[sr2i];
+          months2026.forEach(function(m2){ totalScreensAll2026 += ((monthlyScreensByTA[sr2ta] || {})[m2] || 0); });
+        }
+        var overallSHR = totalFillsAll > 0 ? (totalScreensAll2026 / totalFillsAll).toFixed(1) : '\u2014';
+        html += '<tr style="background:#f8f9fb;font-weight:600">' +
+          '<td class="role-cell" style="color:var(--accent)">Screens / Hire</td>' +
+          '<td class="num" style="color:var(--accent)">' + overallSHR + '</td>';
+        for (var shri = 0; shri < activeTAs.length; shri++) {
+          var shrTA = activeTAs[shri];
+          var shrFills = 0; var shrScreens = 0;
+          months2026.forEach(function(m2){
+            shrFills += ((monthlyFillsByTA[shrTA] || {})[m2] || 0);
+            shrScreens += ((monthlyScreensByTA[shrTA] || {})[m2] || 0);
+          });
+          var shrRatio = shrFills > 0 ? (shrScreens / shrFills).toFixed(1) : '\u2014';
+          var shrColor = shrFills > 0 && (shrScreens / shrFills) > 30 ? 'var(--red)' : 'var(--accent)';
+          html += '<td class="num" style="color:' + shrColor + '">' + shrRatio + '</td><td class="num">\u2014</td>';
+        }
         html += '</tr></tbody></table></div>';
 
         /* YoY comparison moved to Pipeline Health tab */
@@ -1054,6 +1295,38 @@
        TAB: EFFECTIVENESS
        ================================================================ */
     function renderEffectiveness() {
+      /* Key Insights banner - auto-generated from data */
+      var effInsights = [];
+      // Insight 1: Overall passthrough bottleneck
+      var effPt = ANALYTICS.passthrough_rates;
+      effInsights.push('Technical interview is the critical bottleneck: only ' + effPt.technical_to_cultural + '% pass through (compound Team Fit\u2192Cultural: ' + (effPt.teamfit_to_cultural || 0) + '%)');
+      // Insight 2: Highest rejection stage
+      var effRej = ANALYTICS.rejection_by_stage_excl_intern || {};
+      var topRejStage = ''; var topRejCount = 0;
+      for (var ers in effRej) {
+        if (ers !== 'Application Review' && ers !== 'Unknown' && effRej[ers] > topRejCount) { topRejCount = effRej[ers]; topRejStage = ers; }
+      }
+      if (topRejStage) effInsights.push('Highest post-app rejection stage: ' + topRejStage + ' with ' + topRejCount.toLocaleString() + ' rejections (excl. intern)');
+      // Insight 3: Manager delays impact
+      var effMgrHF = ANALYTICS.manager_hireflix_review || [];
+      var totalMgrDelays2 = effMgrHF.reduce(function(s,m){ return s + m.delays; }, 0);
+      var totalMgrSevere = effMgrHF.reduce(function(s,m){ return s + m.severe; }, 0);
+      if (totalMgrDelays2 > 0) effInsights.push(totalMgrDelays2 + ' manager Hireflix delays (' + totalMgrSevere + ' severe 10d+) are slowing pipeline across ' + effMgrHF.filter(function(m){return m.delays > 0}).length + ' managers');
+      // Insight 4: TA with best/worst efficiency
+      var effFunnel = ANALYTICS.funnel_efficiency || [];
+      var calibRoles = effFunnel.filter(function(f){ return f.tf_to_tech_pct < 30 && f.team_fit_entered > 3; });
+      if (calibRoles.length > 0) effInsights.push(calibRoles.length + ' roles show HM calibration issues (TF\u2192Tech <30%): ' + calibRoles.slice(0,3).map(function(r){return r.name}).join(', '));
+      // Insight 5: offer decline rate
+      var effOD = ANALYTICS.offer_decline_2026 || {};
+      if (effOD.decline_rate > 10) effInsights.push('Offer decline rate at ' + effOD.decline_rate + '% (' + effOD.declined + ' of ' + effOD.total + ') \u2014 review comp/candidate experience');
+
+      var insightBanner = '<div class="funnel-banner" style="border-left-color:var(--accent);margin-bottom:24px">' +
+        '<strong style="font-size:13px">KEY INSIGHTS</strong>';
+      for (var eii = 0; eii < effInsights.length; eii++) {
+        insightBanner += '<div style="font-size:13px;margin-top:6px;padding-left:12px">' + (eii + 1) + '. ' + effInsights[eii] + '</div>';
+      }
+      insightBanner += '</div>';
+
       function normalizeRejections(raw) {
         var mapped = { 'TA Screening': 0, 'Team Fit': 0, 'Technical': 0, 'Cultural': 0, 'Offer': 0, 'Other': 0 };
         for (var stage in raw) {
@@ -1075,7 +1348,9 @@
         { label: 'Excl. Product & Tech', raw: ANALYTICS.rejection_by_stage_excl_product_tech }
       ];
 
-      var html = '<div class="section"><div class="section-header">' +
+      var html = insightBanner;
+
+      html += '<div class="section"><div class="section-header">' +
         '<div class="section-bar"></div>' +
         '<span class="section-title">Rejection Analysis by Stage</span>' +
         '<span class="section-count">(post-screening rejections only)</span>' +
@@ -1228,14 +1503,47 @@
           var td = taEff[taName];
           if (!td || !td.monthly || td.monthly.length === 0) continue;
 
+          // Compute trend arrow and summary
+          var trendArrow = ''; var trendSummary = '';
+          if (td.monthly.length >= 2) {
+            var effLast = td.monthly[td.monthly.length - 1];
+            var effPrev = td.monthly[td.monthly.length - 2];
+            var effFirst = td.monthly[0];
+            var declining = effLast.total > effFirst.total;
+            var improving = effLast.total < effFirst.total;
+            trendArrow = improving ? '<span style="color:var(--green);font-weight:700;font-size:14px">&#9650;</span>' :
+              declining ? '<span style="color:var(--red);font-weight:700;font-size:14px">&#9660;</span>' :
+              '<span style="color:var(--text-dim);font-weight:700;font-size:14px">&#9644;</span>';
+            // Analyze what changed
+            var calibFlags = td.monthly.filter(function(m){ return m.flags.indexOf('calibration') !== -1; }).length;
+            var techDropFlags = td.monthly.filter(function(m){ return m.flags.indexOf('tech_dropoff') !== -1; }).length;
+            if (improving) {
+              if (effLast.team_fit < effFirst.team_fit) trendSummary = 'Improving: fewer Team Fit rejections';
+              else if (effLast.ta_screening < effFirst.ta_screening) trendSummary = 'Improving: better screening calibration';
+              else trendSummary = 'Improving: total rejections trending down';
+            } else if (declining) {
+              if (calibFlags >= 2) trendSummary = 'Declining: recurring calibration issues (' + calibFlags + ' mo)';
+              else if (effLast.team_fit > effFirst.team_fit) trendSummary = 'Declining: more Team Fit rejections';
+              else if (techDropFlags > 0) trendSummary = 'Declining: tech drop-off increasing';
+              else trendSummary = 'Declining: rejection volume rising';
+            } else {
+              trendSummary = 'Stable';
+            }
+          }
+
           var borderCol = td.at_risk > 0 ? 'var(--red)' : td.sla_rate >= 50 ? 'var(--green)' : 'var(--orange)';
-          html += '<div style="margin-top:20px;margin-bottom:8px;display:flex;align-items:center;gap:12px">' +
+          html += '<div style="margin-top:20px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
             '<div style="width:4px;height:18px;border-radius:2px;background:' + borderCol + '"></div>' +
             '<strong style="font-size:15px">' + escHtml(taName) + '</strong>' +
+            (trendArrow ? '<span>' + trendArrow + '</span>' : '') +
             '<span style="font-size:12px;color:var(--text-dim)">Filled: ' + td.filled_2026 + ' &middot; TTF: ' + (td.avg_ttf > 0 ? td.avg_ttf.toFixed(0) + 'd' : '\u2014') + ' &middot; SLA: ' + (td.sla_rate > 0 ? td.sla_rate.toFixed(0) + '%' : '\u2014') + '</span>' +
             (td.at_risk > 0 ? '<span class="badge at_risk">' + td.at_risk + ' at risk</span>' : '') +
             (td.manager_delay_count > 0 ? '<span class="issue-badge stakeholder">mgr delays: ' + td.manager_delay_count + '</span>' : '') +
             '</div>';
+          if (trendSummary) {
+            var trendColor = trendSummary.indexOf('Improving') === 0 ? 'var(--green)' : trendSummary.indexOf('Declining') === 0 ? 'var(--red)' : 'var(--text-dim)';
+            html += '<div style="font-size:12px;color:' + trendColor + ';font-weight:600;margin-bottom:8px;padding-left:16px">' + trendSummary + '</div>';
+          }
 
           html += '<table class="data-table"><thead><tr>' +
             '<th>Month</th><th class="num">TA Screen</th><th class="num">Team Fit</th>' +
@@ -1272,6 +1580,66 @@
           html += '</tbody></table>';
         }
         html += '</div>';
+      }
+
+      /* Highest Impact Actions - auto-generated from data */
+      var impactActions = [];
+      // Action 1: Manager with highest delays
+      var hiaMgrHF = ANALYTICS.manager_hireflix_review || [];
+      hiaMgrHF.sort(function(a,b){ return b.delays - a.delays; });
+      if (hiaMgrHF.length > 0 && hiaMgrHF[0].delays > 3) {
+        var topMgr = hiaMgrHF[0];
+        var mgrRoleNames = topMgr.roles.map(function(r){ return r.name; }).join(', ');
+        impactActions.push({
+          text: 'Reduce ' + escHtml(topMgr.manager) + ' Hireflix review time from ' + topMgr.avg_days + 'd to <3d \u2014 impacts ' + topMgr.total_candidates + ' candidates across ' + topMgr.roles.length + ' roles (' + mgrRoleNames + ')',
+          type: 'stakeholder'
+        });
+      }
+      // Action 2: Calibration roles
+      var hiaFunnel = ANALYTICS.funnel_efficiency || [];
+      var hiaCalib = hiaFunnel.filter(function(f){ return f.tf_to_tech_pct < 30 && f.team_fit_entered > 3; });
+      if (hiaCalib.length > 0) {
+        impactActions.push({
+          text: 'Align with HMs on candidate profiles for ' + hiaCalib.length + ' roles with calibration issues (' + hiaCalib.slice(0,3).map(function(r){ return r.name; }).join(', ') + ') \u2014 Team Fit\u2192Technical rate is below 30%',
+          type: 'calibration'
+        });
+      }
+      // Action 3: Roles with high screening effort
+      var hiaHighScreen = hiaFunnel.filter(function(f){ return f.screens_per_teamfit > 5 && f.ta_screens > 10; }).sort(function(a,b){ return b.screens_per_teamfit - a.screens_per_teamfit; });
+      if (hiaHighScreen.length > 0) {
+        var topHS = hiaHighScreen[0];
+        impactActions.push({
+          text: 'Improve sourcing quality for ' + escHtml(topHS.name) + ' \u2014 currently ' + topHS.screens_per_teamfit.toFixed(1) + ' screens per Team Fit entry (' + topHS.ta_screens + ' total screens)',
+          type: 'quality'
+        });
+      }
+      // Action 4: Second worst manager
+      if (hiaMgrHF.length > 1 && hiaMgrHF[1].delays > 2) {
+        var secMgr = hiaMgrHF[1];
+        impactActions.push({
+          text: 'Address ' + escHtml(secMgr.manager) + ' review delays (' + secMgr.avg_days + 'd avg, ' + secMgr.delays + ' delayed candidates) \u2014 ' + secMgr.roles.map(function(r){ return r.name; }).join(', '),
+          type: 'stakeholder'
+        });
+      }
+      // Action 5: Offer decline
+      var hiaOD = ANALYTICS.offer_decline_2026 || {};
+      if (hiaOD.declined > 2) {
+        impactActions.push({
+          text: 'Investigate offer decline causes (' + hiaOD.declined + ' declines at ' + hiaOD.decline_rate + '% rate) \u2014 roles affected: ' + (hiaOD.declined_roles || []).slice(0,3).map(function(r){ return escHtml(r); }).join(', '),
+          type: 'risk'
+        });
+      }
+
+      if (impactActions.length > 0) {
+        var hiaHtml = '';
+        for (var hiai = 0; hiai < Math.min(impactActions.length, 5); hiai++) {
+          var hia = impactActions[hiai];
+          hiaHtml += '<div style="margin-bottom:10px;padding:12px 18px;background:var(--white);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:8px;display:flex;align-items:flex-start;gap:12px">' +
+            '<span style="font-size:16px;font-weight:700;color:var(--accent);min-width:20px">' + (hiai + 1) + '</span>' +
+            '<div><span class="issue-badge ' + hia.type + '">' + hia.type + '</span> ' +
+            '<span style="font-size:13px">' + hia.text + '</span></div></div>';
+        }
+        html += collapsibleSection('Highest Impact Actions', '(top ' + Math.min(impactActions.length, 5) + ' recommendations)', 'var(--green)', hiaHtml);
       }
 
       document.getElementById('tab-effectiveness').innerHTML = html;
