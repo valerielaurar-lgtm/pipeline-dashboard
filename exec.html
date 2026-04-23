@@ -609,13 +609,16 @@
 
       html += '</div>';
 
-      // Existing secondary KPI row (kept for continuity)
-      html += '<div class="kpi-row">';
-      html += '<div class="kpi-card"><div class="label">Open Positions</div><div class="value">' + s.open_positions + '</div><div style="font-size:12px;color:var(--text-dim)">' + s.open_roles + ' roles</div></div>';
-      html += '<div class="kpi-card"><div class="label">On Track / Secured</div><div class="value green">' + s.on_track + '</div></div>';
-      html += '<div class="kpi-card"><div class="label">At Risk / Empty</div><div class="value red">' + s.at_risk + '</div></div>';
-      html += '<div class="kpi-card"><div class="label">2026 Filled YTD</div><div class="value teal">' + s.filled_2026 + '</div><div style="font-size:12px;color:var(--text-dim)">Avg TTF ' + s.avg_ttf + 'd</div></div>';
-      html += '</div>';
+      // Replaced secondary row: Current Offers card
+      var totalCurrentOffers = roles.reduce(function(sum, r) { return sum + (r.offer || 0); }, 0);
+      var rolesWithOffersList = roles.filter(function(r) { return (r.offer || 0) > 0; })
+        .map(function(r) { return r.name + ' (' + r.offer + ')'; }).join(', ');
+      html += '<div style="margin-bottom:28px">';
+      html += '<div class="kpi-card accent-teal">';
+      html += '<div class="label">Current Offers</div>';
+      html += '<div class="value teal">' + totalCurrentOffers + '</div>';
+      html += '<div class="sub">' + (rolesWithOffersList ? escHtml(rolesWithOffersList) : 'No offers out') + '</div>';
+      html += '</div></div>';
 
       // Main layout: table + sidebar
       html += '<div class="recap-layout">';
