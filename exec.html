@@ -567,9 +567,10 @@
       var fillNames = topNames(likelyFill14d, 3);
       var slaNames = topNames(likelyHireSla, 3);
 
-      // Offer Decline
+      // Offer Decline — 2026 aggregate (accepted = filled_2026 hires, declined on open roles)
       var totalDeclined = roles.reduce(function(sum, r) { return sum + (r.offer_declined || 0); }, 0);
-      var totalReached = roles.reduce(function(sum, r) { return sum + (r.offer_reached || 0); }, 0);
+      var totalAccepted = s.filled_2026 || 0;
+      var totalReached = totalAccepted + totalDeclined;
       var offerDeclinePct = totalReached > 0 ? ((totalDeclined / totalReached) * 100).toFixed(1) : '0.0';
 
       // KPI row â new 5-card top row
@@ -605,7 +606,7 @@
       var offerColor = parseFloat(offerDeclinePct) >= 15 ? 'orange' : 'green';
       html += '<div class="kpi-card ' + offerAccent + '"><div class="label">Offer Decline</div>';
       html += '<div class="value ' + offerColor + '">' + offerDeclinePct + '%</div>';
-      html += '<div class="sub">' + totalDeclined + ' of ' + totalReached + ' offers</div></div>';
+      html += '<div class="sub">' + totalDeclined + ' of ' + totalReached + ' concluded' + ((s.offers_pending || 0) > 0 ? ' · ' + s.offers_pending + ' still out' : '') + '</div></div>';
 
       html += '</div>';
 
