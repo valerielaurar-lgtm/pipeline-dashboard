@@ -65,6 +65,12 @@
     .tab-content.active { display: block; }
 
     /* KPI Cards */
+    .kpi-row-5 {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
     .kpi-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -518,7 +524,93 @@
       depts.forEach(function(d) { deptLookup[d.dept] = d; });
 
       // KPI row
-      var html = '<div class="kpi-row">';
+      var roles = EXEC.roles;
+      var s = EXEC.summary;
+      var depts = EXEC.dept_summaries;
+
+      // Group roles by dept (merge Revenue -> Sales)
+      var deptMap = {};
+      var deptOrder = [];
+      roles.forEach(function(r) {
+        var dept = r.dept === 'Revenue' ? 'Sales' : r.dept;
+        if (!deptMap[dept]) { deptMap[dept] = []; deptOrder.push(dept); }
+        deptMap[dept].push(r);
+      });
+      deptOrder.sort();
+
+      // Build dept summary lookup (also merged)
+      var deptLookup = {};
+      depts.forEach(function(d) { deptLookup[d.dept] = d; });
+
+      // ---- Compute top-row metrics from EXEC.roles ----
+      var internRoles = roles.filter(function(r) { return /intern/i.test(r.name); });
+      var nonInternRoles = roles.filter(function(r) { return !/intern/i.test(r.name); });
+      var internPositions = internRoles.reduce(function(sum, r) { return sum + (r.positions || 0); }, 0);
+      var nonInternPositions = nonInternRoles.reduce(function(sum, r) { return sum + (r.positions || 0); }, 0);
+
+      // Likely to Fill (14d): roles with a realistic forecast within 14 days
+      var likelyFill14d = roles.filter(function(r) {
+        return r.forecast && typeof r.forecast.realistic_days === 'number' && r.forecast.realistic_days <= 14;
+      });
+      // Likely to Hire Within SLA: roles whose realistic forecast lands within SLA remaining days
+      var likelyHireSla = roles.filter(function(r) {
+        if (!r.forecast || typeof r.forecast.realistic_days !== 'number') return false;
+        if (typeof r.sla_remaining !== 'number') return r.sla_status === 'ok';
+        return r.forecast.realistic_days <= r.sla_remaining;
+      });
+      // Total likely to hire: any role with a realistic forecast
+      var likelyHireTotal = roles.filter(function(r) { return r.forecast && r.forecast.realistic; }).length;
+
+      function topNames(list, n) {
+        return list.slice(0, n).map(function(r) { return r.name; }).join(', ');
+      }
+      var fillNames = topNames(likelyFill14d, 3);
+      var slaNames = topNames(likelyHireSla, 3);
+
+      // Offer Decline
+      var totalDeclined = roles.reduce(function(sum, r) { return sum + (r.offer_declined || 0); }, 0);
+      var totalReached = roles.reduce(function(sum, r) { return sum + (r.offer_reached || 0); }, 0);
+      var offerDeclinePct = totalReached > 0 ? ((totalDeclined / totalReached) * 100).toFixed(1) : '0.0';
+
+      // KPI row â new 5-card top row
+      var html = '<div class="kpi-row-5">';
+
+      // 1. Open Positions (with distribution)
+      var openSubParts = [];
+      openSubParts.push(nonInternRoles.length + ' roles' + (internPositions > 0 ? ' + ' + internPositions + ' intern' : ''));
+      openSubParts.push(likelyHireTotal + ' likely to hire');
+      html += '<div class="kpi-card accent-dark"><div class="label">Open Positions</div>';
+      html += '<div class="value">' + nonInternPositions;
+      if (internPositions > 0) html += '<small>+' + internPositions + ' intern</small>';
+      html += '</div>';
+      html += '<div class="sub">' + escHtml(openSubParts.join(', ')) + '</div></div>';
+
+      // 2. Likely to Fill (14d)
+      html += '<div class="kpi-card accent-green"><div class="label">Likely to Fill (14d)</div>';
+      html += '<div class="value green">' + likelyFill14d.length + '</div>';
+      html += '<div class="sub">' + (fillNames ? escHtml(fillNames) + (likelyFill14d.length > 3 ? 'â¦' : '') : 'â') + '</div></div>';
+
+      // 3. Likely to Hire Within SLA
+      html += '<div class="kpi-card accent-teal"><div class="label">Likely to Hire Within SLA</div>';
+      html += '<div class="value teal">' + likelyHireSla.length + '</div>';
+      html += '<div class="sub">' + (slaNames ? escHtml(slaNames) + (likelyHireSla.length > 3 ? 'â¦' : '') : 'â') + '</div></div>';
+
+      // 4. 2026 Filled
+      html += '<div class="kpi-card accent-teal"><div class="label">2026 Filled</div>';
+      html += '<div class="value">' + s.filled_2026 + '</div>';
+      html += '<div class="sub">Avg. ' + Math.round(s.avg_ttf) + 'd TTF</div></div>';
+
+      // 5. Offer Decline
+      var offerAccent = parseFloat(offerDeclinePct) >= 15 ? 'accent-orange' : 'accent-green';
+      var offerColor = parseFloat(offerDeclinePct) >= 15 ? 'orange' : 'green';
+      html += '<div class="kpi-card ' + offerAccent + '"><div class="label">Offer Decline</div>';
+      html += '<div class="value ' + offerColor + '">' + offerDeclinePct + '%</div>';
+      html += '<div class="sub">' + totalDeclined + ' of ' + totalReached + ' offers</div></div>';
+
+      html += '</div>';
+
+      // Existing secondary KPI row (kept for continuity)
+      html += '<div class="kpi-row">';
       html += '<div class="kpi-card"><div class="label">Open Positions</div><div class="value">' + s.open_positions + '</div><div style="font-size:12px;color:var(--text-dim)">' + s.open_roles + ' roles</div></div>';
       html += '<div class="kpi-card"><div class="label">On Track / Secured</div><div class="value green">' + s.on_track + '</div></div>';
       html += '<div class="kpi-card"><div class="label">At Risk / Empty</div><div class="value red">' + s.at_risk + '</div></div>';
